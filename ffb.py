@@ -1,3 +1,6 @@
+import json
+import os
+import sqlite3
 import yaml
 import yahoo_fantasy_api as yapi
 from yahoo_oauth import OAuth2
@@ -11,16 +14,63 @@ def authenticate():
     return auth
 
 
+def calc_week_stats():
+    filename = os.path.normpath('data/nfl-weekstats-2019-10.json')
+    with open(filename, 'r') as f:
+        weekstats = json.load(f)
+
+    player_stats = weekstats['players']
+
+    config = load_config()
+    oauth = authenticate()
+    game = yapi.Game(oauth, 'nfl')
+    league = game.to_league(config['league_id'])
+
+    for team in league.teams():
+        roster = league.to_team(team['team_key']).roster()
+        print(team['name'])
+        for player in roster:
+            stats = next((item for item in player_stats if item['name'] == player['name']), None)
+            if stats is None:
+                print(f'not found: {player}')
+        print('-' * 15)
+
+
 def load_config():
     with open('config.yml', 'r') as f:
         conf = yaml.safe_load(f)
     return conf
 
 
-if __name__ == '__main__':
-    config = load_config()
-    oauth = authenticate()
-    game = yapi.Game(oauth, 'nfl')
-    league = game.to_league(config['league_id'])
+def update_player_database():
+    db_path = os.path.normpath('F:/databases/nfl/players.db')
+    conn = sqlite3.connect(db_path)
+    curs = conn.cursor()
+    curs.execute('''CREATE TABLE IF NOT EXISTS player (
+                    id integer PRIMARY KEY,
+                    nfl_name text,
+                    nfl_id text,
+                    esbid text,
+                    gsisPlayerId text,
+                    yahoo_name text)''')
 
-    print(league.teams())
+    filename = os.path.normpath('data/nfl-weekstats-2019-10.json')
+    with open(filename, 'r') as f:
+        player_stats = json.load(f)['players']
+
+    for player in player_stats:
+        result = curs.execute('SELECT * FROM player WHERE nfl_id = ?', player['id']).fetchall()
+        if len(result) == 0:
+            params = (player['name'],
+                      player['id'],
+                      player['esbid'],
+                      player['gsisPlayerId'])
+
+            curs.execute('''INSERT INTO player (nfl_name, nfl_id, esbid, gsisPlayerId)
+                            VALUES (?, ?, ?, ?)''', params)
+
+
+
+if __name__ == '__main__':
+    # calc_week_stats()
+    update_player_database()
