@@ -86,20 +86,29 @@ def update_player_database():
 
     conn.commit()
 
-    players = curs.execute('SELECT id, nfl_name, yahoo_name FROM player').fetchall()
-
     # get Yahoo league to query name
     oauth = authenticate()
     league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
 
+    players = curs.execute('SELECT id, nfl_name, yahoo_name, yahoo_id FROM player').fetchall()
+
+    # add Yahoo ID if missing
     for player in players:
-        if player['yahoo_id'] is None:
-            yahoo_id = league.player_details(player['nfl_name'])['player_id']
-            if yahoo_id is not None:
-                values = (yahoo_id, player['nfl_name'])
-                curs.execute('''UPDATE player
-                                SET yahoo_id = ?,
-                                    yahoo_name = ?''', values)
+        print(player)
+        db_id, nfl_name, yahoo_name, yahoo_id = player
+        if yahoo_id is None:
+            try:
+                yahoo_id = league.player_details(nfl_name)['player_id']
+            except TypeError:
+                print(f'Unable to match NFL player name "{nfl_name}" to a Yahoo player name.')
+                pass
+            except json.decoder.JSONDecodeError:
+                print(f'Unable to search player name "{nfl_name}"')
+
+            values = (yahoo_id, nfl_name)
+            curs.execute('''UPDATE player
+                            SET yahoo_id = ?
+                            WHERE nfl_name = ?''', values)
 
     conn.commit()
 
