@@ -21,18 +21,33 @@ def calc_week_stats():
 
     player_stats = weekstats['players']
 
-    config = load_config()
     oauth = authenticate()
     game = yapi.Game(oauth, 'nfl')
     league = game.to_league(config['league_id'])
+
+    # initialise DB in case we need to map NFL and Yahoo names
+    db_path = os.path.normpath('F:/databases/nfl/players.db')
+    conn = sqlite3.connect(db_path)
+    curs = conn.cursor()
 
     for team in league.teams():
         roster = league.to_team(team['team_key']).roster()
         print(team['name'])
         for player in roster:
-            stats = next((item for item in player_stats if item['name'] == player['name']), None)
+            try:
+                stats = next(item for item in player_stats if item['name'] == player['name'])
+            except StopIteration:
+                result = curs.execute('SELECT nfl_name FROM player WHERE yahoo_name = ?', (player['name'],)
+                                            ).fetchone()
+                if result is None:
+                    stats = None
+                else:
+                    matched_name = result[0]
+                    stats = next((item for item in player_stats if item['name'] == matched_name), None)
+
             if stats is None:
                 print(f'not found: {player}')
+
         print('-' * 15)
 
 
@@ -54,23 +69,42 @@ def update_player_database():
                     gsisPlayerId text,
                     yahoo_name text)''')
 
-    filename = os.path.normpath('data/nfl-weekstats-2019-10.json')
+    filename = os.path.normpath('data/nfl-seasonstats-2019-10.json')
     with open(filename, 'r') as f:
         player_stats = json.load(f)['players']
 
     for player in player_stats:
-        result = curs.execute('SELECT * FROM player WHERE nfl_id = ?', player['id']).fetchall()
+        result = curs.execute('SELECT * FROM player WHERE nfl_id = ?', (player['id'],)).fetchall()
         if len(result) == 0:
-            params = (player['name'],
+            values = (player['name'],
                       player['id'],
                       player['esbid'],
                       player['gsisPlayerId'])
 
             curs.execute('''INSERT INTO player (nfl_name, nfl_id, esbid, gsisPlayerId)
-                            VALUES (?, ?, ?, ?)''', params)
+                            VALUES (?, ?, ?, ?)''', values)
 
+    conn.commit()
+
+    players = curs.execute('SELECT id, nfl_name, yahoo_name FROM player').fetchall()
+
+    # get Yahoo league to query name
+    oauth = authenticate()
+    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
+
+    for player in players:
+        if player['yahoo_id'] is None:
+            yahoo_id = league.player_details(player['nfl_name'])['player_id']
+            if yahoo_id is not None:
+                values = (yahoo_id, player['nfl_name'])
+                curs.execute('''UPDATE player
+                                SET yahoo_id = ?,
+                                    yahoo_name = ?''', values)
+
+    conn.commit()
 
 
 if __name__ == '__main__':
-    # calc_week_stats()
+    config = load_config()
     update_player_database()
+    # calc_week_stats()
