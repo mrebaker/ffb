@@ -1,8 +1,10 @@
 import json
 import os
+
 import sqlite3
 import yaml
 import yahoo_fantasy_api as yapi
+from retry import retry
 from yahoo_oauth import OAuth2
 
 
@@ -45,10 +47,18 @@ def calc_week_stats():
                     matched_name = result[0]
                     stats = next((item for item in player_stats if item['name'] == matched_name), None)
 
-            if stats is None:
+            if stats:
+                print(f'{player["name"]}: {stats}')
+            else:
                 print(f'not found: {player}')
-
         print('-' * 15)
+
+
+@retry(json.decoder.JSONDecodeError, delay=5, backoff=5, max_delay=7500)
+def get_player(player_name):
+    oauth = authenticate()
+    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
+    return league.player_details(player_name)
 
 
 def load_config():
@@ -83,8 +93,7 @@ def update_player_database():
 
             curs.execute('''INSERT INTO player (nfl_name, nfl_id, esbid, gsisPlayerId)
                             VALUES (?, ?, ?, ?)''', values)
-
-    conn.commit()
+            conn.commit()
 
     # get Yahoo league to query name
     oauth = authenticate()
@@ -97,20 +106,20 @@ def update_player_database():
         print(player)
         db_id, nfl_name, yahoo_name, yahoo_id = player
         if yahoo_id is None:
+            player = get_player(nfl_name)
+            # print(f'Unable to search player name "{nfl_name}"')
+
             try:
-                yahoo_id = league.player_details(nfl_name)['player_id']
+                yahoo_id = player['player_id']
             except TypeError:
                 print(f'Unable to match NFL player name "{nfl_name}" to a Yahoo player name.')
                 pass
-            except json.decoder.JSONDecodeError:
-                print(f'Unable to search player name "{nfl_name}"')
 
             values = (yahoo_id, nfl_name)
             curs.execute('''UPDATE player
                             SET yahoo_id = ?
                             WHERE nfl_name = ?''', values)
-
-    conn.commit()
+            conn.commit()
 
 
 if __name__ == '__main__':
