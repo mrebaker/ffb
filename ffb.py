@@ -25,11 +25,12 @@ def authenticate():
 
 
 def calc_week_stats():
-    filename = os.path.normpath('data/nfl-weekstats-2019-10.json')
-    with open(filename, 'r') as f:
-        weekstats = json.load(f)
+    score_file = os.path.normpath('data/nfl-weekstats-2019-10.json')
 
-    player_stats = weekstats['players']
+    with open(score_file, 'r') as f:
+        week_stats = json.load(f)
+
+    player_stats = week_stats['players']
 
     oauth = authenticate()
     game = yapi.Game(oauth, 'nfl')
@@ -38,28 +39,68 @@ def calc_week_stats():
     # initialise DB in case we need to map NFL and Yahoo names
     db_path = os.path.normpath('F:/databases/nfl/players.db')
     conn = sqlite3.connect(db_path)
+    conn.row_factory = dict_factory
     curs = conn.cursor()
 
+    team_scores = {}
     for team in league.teams():
-        roster = league.to_team(team['team_key']).roster()
-        print(team['name'])
+        roster = league.to_team(team['team_key']).roster(week=10)
+        scores = {}
+        missing_players = []
         for player in roster:
+            if player['selected_position'] in ['BN', 'IR']:
+                continue
             try:
                 stats = next(item for item in player_stats if item['name'] == player['name'])
             except StopIteration:
-                result = curs.execute('SELECT nfl_name FROM player WHERE yahoo_name = ?', (player['name'],)
+                result = curs.execute('SELECT nfl_name FROM player WHERE yahoo_id = ?', (player['player_id'],)
                                             ).fetchone()
                 if result is None:
                     stats = None
                 else:
-                    matched_name = result[0]
+                    matched_name = result['nfl_name']
                     stats = next((item for item in player_stats if item['name'] == matched_name), None)
 
-            if stats:
-                print(f'{player["name"]}: {stats}')
-            else:
-                print(f'not found: {player}')
-        print('-' * 15)
+            if not stats:
+                missing_players.append(player["name"])
+                continue
+
+            for k, v in stats['stats'].items():
+                if k not in scores.keys():
+                    scores[k] = int(v)
+                else:
+                    scores[k] += int(v)
+
+        if missing_players:
+            print(f'{team["name"]} missing players: {", ".join(missing_players)}')
+
+        team_scores[team['name']] = scores
+
+    stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
+
+    for team, scores in team_scores.items():
+        points = 0
+        for stat, value in scores.items():
+            try:
+                multiplier = next(i['points'] for i in stat_modifiers if i['nfl_id'] == stat)
+            except StopIteration:
+                print(f'Couldn\'t find stat with NFL ID {stat} in the database. Defaulting to 0 points.')
+                multiplier = 0
+
+            if multiplier is None:
+                print(f'Found stat with NFL ID {stat} in the database, but value found was None. Defaulting to 0 points.')
+                multiplier = 0
+
+            points += value * multiplier
+
+        print(f'{team}: {points:.2f}')
+
+
+def dict_factory(cursor, row):
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
 
 
 @retry(PotentialRateLimitError, delay=5, backoff=4, max_delay=250)
@@ -76,6 +117,13 @@ def get_player(p_name):
         print(f'Waiting for player {p_name}... ')
         raise PotentialRateLimitError
     return details
+
+
+def get_league():
+    oauth = authenticate()
+    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
+    for stat in league.stat_categories():
+        print(stat)
 
 
 def load_config():
@@ -124,11 +172,11 @@ def update_player_database():
 
     players = curs.execute('SELECT id, nfl_name, yahoo_name, yahoo_id FROM player').fetchall()
 
-    # add Yahoo ID if missing
     for player in players:
         db_id, nfl_name, yahoo_name, yahoo_id = player
 
-        if yahoo_id is None:
+        # add Yahoo ID if missing
+        if yahoo_id is None or yahoo_name is None:
             player = get_player(nfl_name)
             try:
                 yahoo_id = player['player_id']
@@ -156,8 +204,32 @@ def update_player_database():
             conn.commit()
 
 
-def scrape_player(p_name):
+def update_stats_database():
+    db_path = os.path.normpath('F:/databases/nfl/players.db')
+    conn = sqlite3.connect(db_path)
+    curs = conn.cursor()
+    curs.execute('''CREATE TABLE IF NOT EXISTS statline (
+                        id integer PRIMARY KEY,
+                        nfl_name text,
+                        nfl_id text,
+                        yahoo_name text,
+                        yahoo_id text,
+                        points real)''')
 
+    statlines_file = os.path.normpath('data/statlines.json')
+
+    with open(statlines_file, 'r') as f:
+        statlines = json.load(f)
+
+    for stat, details in statlines.items():
+        vals = (details['name'], stat, None, None, None)
+        curs.execute('''INSERT INTO statline (nfl_name, nfl_id, yahoo_name, yahoo_id, points)
+                        VALUES (?, ?, ?, ?, ?)''', vals)
+
+    conn.commit()
+
+
+def scrape_player(p_name):
     p_name = urllib.parse.quote(p_name)
 
     search_url = f'https://sports.yahoo.com/site/api/resource/searchassist;searchTerm={p_name}'
@@ -194,5 +266,7 @@ def scrape_player(p_name):
 if __name__ == '__main__':
     config = load_config()
     # update_player_database()
+    # update_stats_database()
     calc_week_stats()
+    # get_league()
 
