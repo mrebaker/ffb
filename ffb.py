@@ -1,11 +1,19 @@
+from datetime import datetime as dt
 import json
 import os
+import urllib.parse
 
+import requests
 import sqlite3
 import yaml
 import yahoo_fantasy_api as yapi
+
 from retry import retry
 from yahoo_oauth import OAuth2
+
+
+class PotentialRateLimitError(BaseException):
+    pass
 
 
 def authenticate():
@@ -54,17 +62,32 @@ def calc_week_stats():
         print('-' * 15)
 
 
-@retry(json.decoder.JSONDecodeError, delay=5, backoff=5, max_delay=7500)
+@retry(PotentialRateLimitError, delay=5, backoff=4, max_delay=250)
 def get_player(player_name):
+    if "\'" in player_name:
+        log(f'Unable to search player name {player_name}')
+        return []
     oauth = authenticate()
     league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
-    return league.player_details(player_name)
+    try:
+        details = league.player_details(player_name)
+    except json.decoder.JSONDecodeError as e:
+        log('Potential rate limit error')
+        print('Waiting...')
+        raise PotentialRateLimitError
+    return details
 
 
 def load_config():
     with open('config.yml', 'r') as f:
         conf = yaml.safe_load(f)
     return conf
+
+
+def log(msg):
+    log_file = 'log.txt'
+    with open(log_file, 'a+') as f:
+        f.write(f'{dt.now().strftime("%Y-%m-%d %H:%M:S")} {msg}\n')
 
 
 def update_player_database():
@@ -103,26 +126,67 @@ def update_player_database():
 
     # add Yahoo ID if missing
     for player in players:
-        print(player)
         db_id, nfl_name, yahoo_name, yahoo_id = player
+
+        # if db_id < 507:
+        #     # TODO remove this - it's just in to skip players we know Yahoo API won't find
+        #     print(f'Skipping {nfl_name}')
+        #     continue
+
         if yahoo_id is None:
             player = get_player(nfl_name)
-            # print(f'Unable to search player name "{nfl_name}"')
-
             try:
                 yahoo_id = player['player_id']
+                yahoo_name = nfl_name
             except TypeError:
-                print(f'Unable to match NFL player name "{nfl_name}" to a Yahoo player name.')
-                pass
+                log(f'Unable to match NFL player name "{nfl_name}" to a Yahoo player name.')
+                log('Trying screen scrape')
+                scraped_player = scrape_player(nfl_name)
 
-            values = (yahoo_id, nfl_name)
+                if not scraped_player:
+                    continue
+
+                yahoo_id = scraped_player['id'].split('.')[-1]
+                yahoo_name = scraped_player['display_name']
+
+            values = (yahoo_id, yahoo_name, nfl_name)
             curs.execute('''UPDATE player
-                            SET yahoo_id = ?
+                            SET yahoo_id = ?, yahoo_name = ?
                             WHERE nfl_name = ?''', values)
             conn.commit()
+
+
+def scrape_player(player_name):
+    player_name = urllib.parse.quote(player_name)
+    search_url = f'https://sports.yahoo.com/site/api/resource/searchassist;searchTerm={player_name}'
+    h = requests.get(search_url)
+
+    if h.status_code != 200:
+        return {}
+
+    hits = h.json()['items']
+
+    if len(hits) > 1:
+        print(f'WARNING: more than one player found via screen scrape for {player_name}')
+
+    data = hits[0]['data']
+
+    data = data.replace('\\', '')
+    data = data.replace('{', '')
+    data = data.replace('}', '')
+
+    kv_pairs = data.split(',')
+
+    d = {}
+    for kv in kv_pairs:
+        k, v = kv.split(':', 1)
+        d[k] = v
+
+    return d
 
 
 if __name__ == '__main__':
     config = load_config()
     update_player_database()
     # calc_week_stats()
+
