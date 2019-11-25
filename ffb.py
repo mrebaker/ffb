@@ -24,17 +24,22 @@ def authenticate():
     return auth
 
 
-def calc_week_stats():
-    score_file = os.path.normpath('data/nfl-weekstats-2019-10.json')
+def calc_week_stats(week=0):
+    oauth = authenticate()
+    game = yapi.Game(oauth, 'nfl')
+    league = game.to_league(config['league_id'])
+
+    if week == 0:
+        week_param = league.current_week()
+    else:
+        week_param = week
+
+    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week_param}.json')
 
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
 
-    player_stats = week_stats['players']
-
-    oauth = authenticate()
-    game = yapi.Game(oauth, 'nfl')
-    league = game.to_league(config['league_id'])
+    player_stats = week_stats['games']['102019']['players']
 
     # initialise DB in case we need to map NFL and Yahoo names
     db_path = os.path.normpath('F:/databases/nfl/players.db')
@@ -44,7 +49,7 @@ def calc_week_stats():
 
     team_scores = {}
     for team in league.teams():
-        roster = league.to_team(team['team_key']).roster(week=10)
+        roster = league.to_team(team['team_key']).roster(week=week_param)
         scores = {}
         missing_players = []
         for player in roster:
@@ -66,6 +71,9 @@ def calc_week_stats():
                 continue
 
             for k, v in stats['stats'].items():
+                # if team['name'] == 'K-Town Grayhawks':
+                #     print(f'{player["name"]}, {k}, {v}')
+
                 if k not in scores.keys():
                     scores[k] = int(v)
                 else:
@@ -107,8 +115,9 @@ def calc_week_stats():
         if isinstance(v, dict):
             team1 = v['matchup']['0']['teams']['0']['team'][0][2]['name']
             team2 = v['matchup']['0']['teams']['1']['team'][0][2]['name']
-            print(f'{team1} vs {team2}')
+            # print(f'{team1} vs {team2}')
 
+    print(f"------ Week {week_param} ------")
     for team, points in team_points.items():
         print(f'{team}: {points:.2f}')
 
@@ -120,8 +129,21 @@ def dict_factory(cursor, row):
     return d
 
 
-def find_players_by_score_type(nfl_score_id):
-    score_file = os.path.normpath('data/nfl-weekstats-2019-10.json')
+def download_weekstats(season, week):
+    url = f'https://api.fantasy.nfl.com/v2/players/weekstats?season={season}&week={week:02}'
+    resp = requests.get(url)
+
+    if resp.status_code == 200:
+        filename = f'data/nfl-weekstats-{season}-{week}.json'
+        with open(filename, 'w+') as f:
+            f.write(resp.text)
+
+
+def find_players_by_score_type(nfl_score_id, period):
+    if period == 'season':
+        score_file = os.path.normpath('data/nfl-seasonstats-2019-10.json')
+    else:
+        score_file = os.path.normpath('data/nfl-weekstats-2019-10.json')
 
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
@@ -250,17 +272,26 @@ def update_stats_database():
                         yahoo_id text,
                         points real)''')
 
-    statlines_file = os.path.normpath('data/statlines.json')
+    nfl_stats_file = os.path.normpath('data/nfl-stats.json')
 
-    with open(statlines_file, 'r') as f:
+    with open(nfl_stats_file, 'r') as f:
         statlines = json.load(f)
 
-    for stat, details in statlines.items():
-        vals = (details['name'], stat, None, None, None)
-        curs.execute('''INSERT INTO statline (nfl_name, nfl_id, yahoo_name, yahoo_id, points)
-                        VALUES (?, ?, ?, ?, ?)''', vals)
+    for stat_dict in statlines['stats']:
+        vals = (stat_dict['name'],
+                stat_dict['id'],
+                stat_dict["id"],
+                stat_dict["id"],
+                stat_dict["id"])
 
-    conn.commit()
+        curs.execute("""insert or replace into statline (nfl_name, nfl_id, yahoo_name, yahoo_id, points) 
+                        values (?, 
+                                ?, 
+                                (SELECT yahoo_name from statline where nfl_id = CAST(? as text)),
+                                (SELECT yahoo_id from statline where nfl_id = CAST(? as text)),
+                                (SELECT points from statline where nfl_id = CAST(? as text))
+                                );""", vals)
+        conn.commit()
 
 
 def scrape_player(p_name):
@@ -301,7 +332,14 @@ if __name__ == '__main__':
     config = load_config()
     # update_player_database()
     # update_stats_database()
-    calc_week_stats()
     # get_league()
-    # find_players_by_score_type('32')
+    # find_players_by_score_type('74', '10')
+
+    for w in range(18):
+        download_weekstats(2019, w)
+
+    for w in range(1, 13):
+        calc_week_stats(w)
+
+
 
