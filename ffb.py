@@ -103,6 +103,23 @@ def dict_factory(cursor, row):
     return d
 
 
+def find_players_by_score_type(nfl_score_id):
+    score_file = os.path.normpath('data/nfl-weekstats-2019-10.json')
+
+    with open(score_file, 'r') as f:
+        week_stats = json.load(f)
+
+    filtered = [i for i in week_stats['players'] if nfl_score_id in i['stats'].keys()]
+
+    for player in filtered:
+        attr_to_show = [player['name'],
+                        player['teamAbbr'],
+                        player['position'],
+                        player['stats'][nfl_score_id]]
+
+        print('\t'.join(attr_to_show))
+
+
 @retry(PotentialRateLimitError, delay=5, backoff=4, max_delay=250)
 def get_player(p_name):
     if "\'" in p_name:
@@ -267,6 +284,7 @@ if __name__ == '__main__':
     config = load_config()
     # update_player_database()
     # update_stats_database()
-    calc_week_stats()
+    # calc_week_stats()
     # get_league()
+    find_players_by_score_type('5')
 
