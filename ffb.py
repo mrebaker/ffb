@@ -78,6 +78,8 @@ def calc_week_stats():
 
     stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
 
+    team_points = {}
+    missing_multipliers = {}
     for team, scores in team_scores.items():
         points = 0
         for stat, value in scores.items():
@@ -88,11 +90,26 @@ def calc_week_stats():
                 multiplier = 0
 
             if multiplier is None:
-                print(f'Found stat with NFL ID {stat} in the database, but value found was None. Defaulting to 0 points.')
+                try:
+                    missing_multipliers[str(stat)] += value
+                except KeyError:
+                    missing_multipliers[str(stat)] = value
                 multiplier = 0
 
             points += value * multiplier
+        team_points[team] = points
 
+    if missing_multipliers:
+        print('Missing multipiers', missing_multipliers)
+
+    matchups_settings = league.matchups()
+    for v in matchups_settings['fantasy_content']['league'][1]['scoreboard']['0']['matchups'].values():
+        if isinstance(v, dict):
+            team1 = v['matchup']['0']['teams']['0']['team'][0][2]['name']
+            team2 = v['matchup']['0']['teams']['1']['team'][0][2]['name']
+            print(f'{team1} vs {team2}')
+
+    for team, points in team_points.items():
         print(f'{team}: {points:.2f}')
 
 
@@ -284,7 +301,7 @@ if __name__ == '__main__':
     config = load_config()
     # update_player_database()
     # update_stats_database()
-    # calc_week_stats()
+    calc_week_stats()
     # get_league()
-    find_players_by_score_type('5')
+    # find_players_by_score_type('32')
 
