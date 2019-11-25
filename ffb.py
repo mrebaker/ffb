@@ -48,6 +48,8 @@ def calc_week_stats(week=0):
     curs = conn.cursor()
 
     team_scores = {}
+    team_missing_players = {}
+
     for team in league.teams():
         roster = league.to_team(team['team_key']).roster(week=week_param)
         scores = {}
@@ -55,24 +57,28 @@ def calc_week_stats(week=0):
         for player in roster:
             if player['selected_position'] in ['BN', 'IR']:
                 continue
-            try:
-                stats = next(item for item in player_stats if item['name'] == player['name'])
-            except StopIteration:
-                result = curs.execute('SELECT nfl_name FROM player WHERE yahoo_id = ?', (player['player_id'],)
-                                            ).fetchone()
-                if result is None:
-                    stats = None
-                else:
-                    matched_name = result['nfl_name']
-                    stats = next((item for item in player_stats if item['name'] == matched_name), None)
 
-            if not stats:
-                missing_players.append(player["name"])
+            qry_result = curs.execute('SELECT nfl_id FROM player WHERE yahoo_id = ?', (player['player_id'],)
+                                  ).fetchone()
+
+            if qry_result:
+                nfl_id = qry_result['nfl_id']
+            else:
+                missing_players.append(f'{player["name"]} (not in database using yahoo_id {player["player_id"]})')
                 continue
 
-            for k, v in stats['stats'].items():
+            try:
+                stats = player_stats[f'{nfl_id}']
+            except KeyError:
+                missing_players.append(f'{player["name"]} (not in stats using nfl_id {nfl_id})')
+                continue
+
+            for k, v in stats['stats']['week']['2019'][f'{week_param:02}'].items():
                 # if team['name'] == 'K-Town Grayhawks':
                 #     print(f'{player["name"]}, {k}, {v}')
+
+                if k == 'pts':
+                    continue
 
                 if k not in scores.keys():
                     scores[k] = int(v)
@@ -80,7 +86,7 @@ def calc_week_stats(week=0):
                     scores[k] += int(v)
 
         if missing_players:
-            print(f'{team["name"]} missing players: {", ".join(missing_players)}')
+            team_missing_players[team['name']] = missing_players
 
         team_scores[team['name']] = scores
 
@@ -107,9 +113,6 @@ def calc_week_stats(week=0):
             points += value * multiplier
         team_points[team] = points
 
-    if missing_multipliers:
-        print('Missing multipiers', missing_multipliers)
-
     matchups_settings = league.matchups()
     for v in matchups_settings['fantasy_content']['league'][1]['scoreboard']['0']['matchups'].values():
         if isinstance(v, dict):
@@ -120,6 +123,12 @@ def calc_week_stats(week=0):
     print(f"------ Week {week_param} ------")
     for team, points in team_points.items():
         print(f'{team}: {points:.2f}')
+
+    for team, players in team_missing_players.items():
+        print(f'{team} missing {",".join(players)}')
+
+    if missing_multipliers:
+        print('Missing multipiers', missing_multipliers)
 
 
 def dict_factory(cursor, row):
@@ -335,10 +344,10 @@ if __name__ == '__main__':
     # get_league()
     # find_players_by_score_type('74', '10')
 
-    for w in range(18):
-        download_weekstats(2019, w)
+    # for w in range(18):
+    #     download_weekstats(2019, w)
 
-    for w in range(1, 13):
+    for w in range(2, 3):
         calc_week_stats(w)
 
 
