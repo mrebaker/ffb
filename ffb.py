@@ -24,17 +24,14 @@ def authenticate():
     return auth
 
 
-def calc_week_stats(week=0):
+def calc_week_stats(week=None):
     oauth = authenticate()
     game = yapi.Game(oauth, 'nfl')
     league = game.to_league(config['league_id'])
 
-    if week == 0:
-        week_param = league.current_week()
-    else:
-        week_param = week
+    week = week or league.current_week()
 
-    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week_param}.json')
+    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
 
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
@@ -51,7 +48,7 @@ def calc_week_stats(week=0):
     team_missing_players = {}
 
     for team in league.teams():
-        roster = league.to_team(team['team_key']).roster(week=week_param)
+        roster = league.to_team(team['team_key']).roster(week=week)
         scores = {}
         missing_players = []
         for player in roster:
@@ -73,7 +70,7 @@ def calc_week_stats(week=0):
                 missing_players.append(f'{player["name"]} (not in stats using nfl_id {nfl_id})')
                 continue
 
-            for k, v in stats['stats']['week']['2019'][f'{week_param:02}'].items():
+            for k, v in stats['stats']['week']['2019'][f'{week:02}'].items():
                 # if team['name'] == 'K-Town Grayhawks':
                 #     print(f'{player["name"]}, {k}, {v}')
 
@@ -113,19 +110,21 @@ def calc_week_stats(week=0):
             points += value * multiplier
         team_points[team] = points
 
-    matchups_settings = league.matchups()
-    for v in matchups_settings['fantasy_content']['league'][1]['scoreboard']['0']['matchups'].values():
-        if isinstance(v, dict):
-            team1 = v['matchup']['0']['teams']['0']['team'][0][2]['name']
-            team2 = v['matchup']['0']['teams']['1']['team'][0][2]['name']
-            # print(f'{team1} vs {team2}')
+    week_matchups = league.matchups(week)
 
-    print(f"------ Week {week_param} ------")
-    for team, points in team_points.items():
-        print(f'{team}: {points:.2f}')
+    print(f"------ Week {week} ------")
+    for k, v in week_matchups.items():
+        team1 = v['0']['team'][0][2]['name']
+        team2 = v['1']['team'][0][2]['name']
+        team1_score = team_points[team1]
+        team2_score = team_points[team2]
+        print(f'{team1} {team1_score:.2f} v {team2_score:.2f} {team2}')
+
+    # for team, points in team_points.items():
+    #     print(f'{team}: {points:.2f}')
 
     for team, players in team_missing_players.items():
-        print(f'{team} missing {",".join(players)}')
+        print(f'{team} missing {", ".join(players)}')
 
     if missing_multipliers:
         print('Missing multipiers', missing_multipliers)
@@ -347,7 +346,7 @@ if __name__ == '__main__':
     # for w in range(18):
     #     download_weekstats(2019, w)
 
-    for w in range(2, 3):
+    for w in range(1, 13):
         calc_week_stats(w)
 
 
