@@ -9,16 +9,15 @@ A lot of work left to do, but aims are to:
 """
 
 
-from datetime import datetime as dt
 import json
 import os
+import sqlite3
 import urllib.parse
+from datetime import datetime as dt
 
 import requests
-import sqlite3
 import yaml
 import yahoo_fantasy_api as yapi
-
 from retry import retry
 from yahoo_oauth import OAuth2
 
@@ -27,11 +26,13 @@ class PotentialRateLimitError(BaseException):
     """
     Custom exception to allow retry of failed API call.
     """
-    pass
 
 
 def authenticate():
-    # auth = OAuth2(config['client_id'], config['client_secret'])
+    """
+    Creates an authenticated Yahoo API session, getting a new token if necessary.
+    :return: the authenticated session
+    """
     auth = OAuth2(None, None, from_file='oauth.json')
     if not auth.token_is_valid(print_log=False):
         auth.refresh_access_token()
@@ -39,31 +40,33 @@ def authenticate():
 
 
 def calc_week_stats(week=None):
+    """
+    Outputs the scores for each matchup in the given week, or the current week if not provided.
+    :param week: Integer referring to a week of the fantasy season
+    :return: Nothing
+    """
     oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
+    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
 
     week = week or league.current_week()
 
-    # initialise DB in case we need to map NFL and Yahoo names
-    conn, curs = db_connect()
-
-    team_missing_players = {}
     team_points = {}
+    team_missing_players = {}
     team_missing_multipliers = {}
 
     for team in league.teams():
         score, missing_players = team_weekly_score(team, week, league)
-        points, mm = points_from_scores(score)
+        points, missing_multipliers = points_from_scores(score)
         team_points[team['name']] = points
-        team_missing_multipliers[team['name']] = mm
+        team_missing_multipliers[team['name']] = missing_multipliers
         team_missing_players[team['name']] = missing_players
 
     week_matchups = league.matchups(week)
 
     print(f"------ Week {week} ------")
-    for k, v in week_matchups.items():
-        team1 = v['0']['team'][0][2]['name']
-        team2 = v['1']['team'][0][2]['name']
+    for val in week_matchups.values():
+        team1 = val['0']['team'][0][2]['name']
+        team2 = val['1']['team'][0][2]['name']
         team1_score = team_points[team1]
         team2_score = team_points[team2]
         print(f'{team1} {team1_score:.2f} v {team2_score:.2f} {team2}')
@@ -78,6 +81,10 @@ def calc_week_stats(week=None):
 
 
 def db_connect():
+    """
+    Connects to the database containing player and stat info.
+    :return: connection and cursor objects
+    """
     db_path = os.path.normpath('F:/databases/nfl/players.db')
     conn = sqlite3.connect(db_path)
     conn.row_factory = dict_factory
@@ -86,6 +93,11 @@ def db_connect():
 
 
 def dict_factory(cursor, row):
+    """
+    Makes sqlite return an indexable dict of results rather than a tuple.
+    Not called natively - just passed to the row_factory attribute.
+    :return: n/a
+    """
     d = {}
     for idx, col in enumerate(cursor.description):
         d[col[0]] = row[idx]
@@ -93,6 +105,12 @@ def dict_factory(cursor, row):
 
 
 def download_weekstats(season, week):
+    """
+    Gets the player stats for the given season and week
+    :param season: integer referring to the requested fantasy year e.g. 2019
+    :param week: integer referring to the requested fantasy week
+    :return: nothing
+    """
     url = f'https://api.fantasy.nfl.com/v2/players/weekstats?season={season}&week={week:02}'
     resp = requests.get(url)
 
@@ -103,6 +121,12 @@ def download_weekstats(season, week):
 
 
 def find_players_by_score_type(nfl_score_id, period):
+    """
+    Prints a table of all players who recorded particular boxscore stats.
+    :param nfl_score_id: The ID of the requested stat per the NFL Fantasy API
+    :param period: "season" for the whole season, otherwise just uses 2019 week 10
+    :return:
+    """
     if period == 'season':
         score_file = os.path.normpath('data/nfl-seasonstats-2019-10.json')
     else:
@@ -124,40 +148,51 @@ def find_players_by_score_type(nfl_score_id, period):
 
 @retry(PotentialRateLimitError, delay=5, backoff=4, max_delay=250)
 def get_player(p_name):
+    """
+    Gets the Yahoo fantasy details for a particular name.
+    :param p_name: The player's name
+    :return: a dict containing details from the Yahoo fantasy API
+    """
     if "\'" in p_name:
         log(f'Unable to search player name {p_name}')
         return []
     oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
+    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
     try:
         details = league.player_details(p_name)
-    except json.decoder.JSONDecodeError as e:
+    except json.decoder.JSONDecodeError:
         log('Potential rate limit error')
         print(f'Waiting for player {p_name}... ')
         raise PotentialRateLimitError
     return details
 
 
-def get_league():
-    oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
-    for stat in league.stat_categories():
-        print(stat)
-
-
 def load_config():
+    """
+    Wrapper for loading YAML config file
+    :return: dict representing contents of the config file
+    """
     with open('config.yml', 'r') as f:
         conf = yaml.safe_load(f)
     return conf
 
 
 def log(msg):
+    """
+    Very basic log file writer
+    :param msg: the text to write to the log file
+    :return: Nothing
+    """
     log_file = 'log.txt'
     with open(log_file, 'a+') as f:
         f.write(f'{dt.now().strftime("%Y-%m-%d %H:%M:s")} {msg}\n')
 
 
 def update_player_database():
+    """
+    Adds players from a week stat file, if missing from the database.
+    :return:
+    """
     db_path = os.path.normpath('F:/databases/nfl/players.db')
     conn = sqlite3.connect(db_path)
     curs = conn.cursor()
@@ -187,7 +222,7 @@ def update_player_database():
 
     # get Yahoo league to query name
     oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
+    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
 
     players = curs.execute('SELECT id, nfl_name, yahoo_name, yahoo_id FROM player').fetchall()
 
@@ -224,6 +259,11 @@ def update_player_database():
 
 
 def points_from_scores(score_dict):
+    """
+    Calculates the points total for a set of scores, based on the multipliers in the database.
+    :param score_dict: a dict containing the scores and their volume
+    :return: points total and a dict of score IDs that have no multiplier in the database.
+    """
     conn, curs = db_connect()
     stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
 
@@ -247,7 +287,12 @@ def points_from_scores(score_dict):
 
     return points, missing_multipliers
 
+
 def update_stats_database():
+    """
+    Adds new stat types to the database.
+    :return: nothing
+    """
     db_path = os.path.normpath('F:/databases/nfl/players.db')
     conn = sqlite3.connect(db_path)
     curs = conn.cursor()
@@ -271,7 +316,7 @@ def update_stats_database():
                 stat_dict["id"],
                 stat_dict["id"])
 
-        curs.execute("""insert or replace into statline 
+        curs.execute("""insert or replace into statline
                         (nfl_name, nfl_id, yahoo_name, yahoo_id, points)
                         values (?,
                                 ?, 
@@ -283,15 +328,21 @@ def update_stats_database():
 
 
 def scrape_player(p_name):
+    """
+    If searching for a player in the Yahoo API fails, try to scrape their details from the website.
+    Why aren't all players in the API? Good question.
+    :param p_name: player name
+    :return: dict representing the information provided via the Yahoo website.
+    """
     p_name = urllib.parse.quote(p_name)
 
     search_url = f'https://sports.yahoo.com/site/api/resource/searchassist;searchTerm={p_name}'
-    h = requests.get(search_url)
+    response = requests.get(search_url)
 
-    if h.status_code != 200:
+    if response.status_code != 200:
         return {}
 
-    hits = h.json()['items']
+    hits = response.json()['items']
 
     if len(hits) > 1:
         print(f'WARNING: more than one player found via screen scrape for {p_name}')
@@ -299,7 +350,7 @@ def scrape_player(p_name):
     try:
         data = hits[0]['data']
     except IndexError:
-        print(f'DUMP: status {h.status_code} content {h.content}')
+        print(f'DUMP: status {response.status_code} content {response.content}')
         return {}
 
     data = data.replace('\\', '')
@@ -309,21 +360,28 @@ def scrape_player(p_name):
     kv_pairs = data.split(',')
 
     d = {}
-    for kv in kv_pairs:
-        k, v = kv.split(':', 1)
+    for key_val in kv_pairs:
+        k, v = key_val.split(':', 1)
         d[k] = v
 
     return d
 
 
-def team_weekly_score(team, week, lg):
+def team_weekly_score(team, week, league):
+    """
+    Gets all the scores accrued by a fantasy team for a given week of the league season.
+    :param team: dict representing the team resource from Yahoo API
+    :param week: int for the chosen fantasy week
+    :param league: object representing the league resource from Yahoo API
+    :return: dict of scores accrued, and a dict of players not in database or stat file
+    """
     conn, curs = db_connect()
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
 
     player_stats = week_stats['games']['102019']['players']
-    roster = lg.to_team(team['team_key']).roster(week=week)
+    roster = league.to_team(team['team_key']).roster(week=week)
 
     scores = {}
     missing_players = []
@@ -332,7 +390,7 @@ def team_weekly_score(team, week, lg):
         if player['selected_position'] in ['BN', 'IR']:
             continue
 
-        qry_result = curs.execute('''SELECT nfl_id 
+        qry_result = curs.execute('''SELECT nfl_id
                                              FROM player 
                                              WHERE yahoo_id = ?''',
                                   (player['player_id'],)).fetchone()
@@ -362,7 +420,7 @@ def team_weekly_score(team, week, lg):
 
 
 if __name__ == '__main__':
-    config = load_config()
+    CONFIG = load_config()
     # update_player_database()
     # update_stats_database()
     # get_league()
