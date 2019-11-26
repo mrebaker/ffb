@@ -215,7 +215,7 @@ def update_player_database():
     oauth = authenticate()
     league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
 
-    players = curs.execute('''SELECT id, nfl_name, yahoo_name, 
+    players = curs.execute('''SELECT id, nfl_name, yahoo_name,
                               yahoo_id, eligible_positions FROM player''').fetchall()
 
     for player in players:
@@ -306,8 +306,22 @@ def points_from_scores(score_dict):
     return points, missing_multipliers
 
 
-def position_rankings(position, week=None):
-    pass
+def position_rankings(position, week):
+    conn, curs = db_connect()
+    players = curs.execute("""SELECT * FROM player 
+                              WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
+
+    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
+    with open(score_file, 'r') as f:
+        stats = json.load(f)
+
+    for player in players:
+        try:
+            player_stats = stats['games']['102019']['players'][player['nfl_id']]
+        except KeyError:
+            continue
+
+        print(player_stats)
 
 
 def update_stats_database():
@@ -443,7 +457,7 @@ def team_weekly_score(team, week, league):
 
 if __name__ == '__main__':
     CONFIG = load_config()
-    update_player_database()
+    # update_player_database()
     # update_stats_database()
     # get_league()
     # find_players_by_score_type('74', '10')
@@ -453,3 +467,5 @@ if __name__ == '__main__':
 
     # for w in range(1, 2):
     #     calc_week_stats(w)
+
+    position_rankings('TE', 10)
