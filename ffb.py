@@ -193,16 +193,7 @@ def update_player_database():
     Adds players from a week stat file, if missing from the database.
     :return:
     """
-    db_path = os.path.normpath('F:/databases/nfl/players.db')
-    conn = sqlite3.connect(db_path)
-    curs = conn.cursor()
-    curs.execute('''CREATE TABLE IF NOT EXISTS player (
-                    id integer PRIMARY KEY,
-                    nfl_name text,
-                    nfl_id text,
-                    esbid text,
-                    gsisPlayerId text,
-                    yahoo_name text)''')
+    conn, curs = db_connect()
 
     filename = os.path.normpath('data/nfl-seasonstats-2019-10.json')
     with open(filename, 'r') as f:
@@ -224,25 +215,24 @@ def update_player_database():
     oauth = authenticate()
     league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
 
-    players = curs.execute('SELECT id, nfl_name, yahoo_name, yahoo_id FROM player').fetchall()
+    players = curs.execute('''SELECT id, nfl_name, yahoo_name, 
+                              yahoo_id, eligible_positions FROM player''').fetchall()
 
     for player in players:
-        db_id, nfl_name, yahoo_name, yahoo_id = player
-
-        # add Yahoo ID if missing
-        if yahoo_id is None or yahoo_name is None:
-            player = get_player(nfl_name)
+        # add Yahoo details if missing
+        if player['yahoo_id'] is None or player['yahoo_name'] is None:
+            player_yahoo_profile = get_player(player['nfl_name'])
             try:
-                yahoo_id = player['player_id']
-                yahoo_name = nfl_name
+                yahoo_id = player_yahoo_profile['player_id']
+                yahoo_name = player['nfl_name']
             except TypeError:
-                log(f'Unable to match NFL player name "{nfl_name}" to a Yahoo player name.')
+                log(f'Unable to match NFL player name "{player["nfl_name"]}" to a Yahoo player.')
                 log('Trying screen scrape')
-                scraped_player = scrape_player(nfl_name)
+                scraped_player = scrape_player(player['nfl_name'])
 
                 if not scraped_player:
-                    if '.' in nfl_name:
-                        scraped_player = scrape_player(nfl_name.replace('.', ''))
+                    if '.' in player['nfl_name']:
+                        scraped_player = scrape_player(player['nfl_name'].replace('.', ''))
                         if not scraped_player:
                             continue
                     else:
@@ -251,10 +241,38 @@ def update_player_database():
                 yahoo_id = scraped_player['id'].split('.')[-1]
                 yahoo_name = scraped_player['display_name']
 
-            values = (yahoo_id, yahoo_name, nfl_name)
+            values = (yahoo_id, yahoo_name, player['nfl_name'])
             curs.execute('''UPDATE player
                             SET yahoo_id = ?, yahoo_name = ?
                             WHERE nfl_name = ?''', values)
+            conn.commit()
+
+        # add eligible positions if missing
+        if player['eligible_positions'] is None:
+            player_yahoo_profile = get_player(player['yahoo_name'])
+            try:
+                eligible_positions = player_yahoo_profile['eligible_positions']
+                # Yahoo API returns a list of dicts, so extract the dict values
+                position_list = [d['position'] for d in eligible_positions]
+                position_text = ",".join(position_list)
+            except TypeError:
+                scraped_player = scrape_player(player['nfl_name'])
+                if not scraped_player:
+                    if '.' in player['nfl_name']:
+                        scraped_player = scrape_player(player['nfl_name'].replace('.', ''))
+                        if not scraped_player:
+                            continue
+                    else:
+                        continue
+                try:
+                    position_text = scraped_player['positions']
+                except KeyError:
+                    continue
+
+            values = (position_text, player['id'])
+            curs.execute('''UPDATE player
+                            SET eligible_positions = ?
+                            WHERE id = ?''', values)
             conn.commit()
 
 
@@ -286,6 +304,10 @@ def points_from_scores(score_dict):
         points += value * multiplier
 
     return points, missing_multipliers
+
+
+def position_rankings(position, week=None):
+    pass
 
 
 def update_stats_database():
@@ -344,27 +366,27 @@ def scrape_player(p_name):
 
     hits = response.json()['items']
 
-    if len(hits) > 1:
-        print(f'WARNING: more than one player found via screen scrape for {p_name}')
-
-    try:
-        data = hits[0]['data']
-    except IndexError:
-        print(f'DUMP: status {response.status_code} content {response.content}')
+    if not hits:
         return {}
 
-    data = data.replace('\\', '')
-    data = data.replace('{', '')
-    data = data.replace('}', '')
+    for hit in hits:
+        json_str = hit['data'].replace('\\', '"')
+        hit['data'] = json.loads(json_str)
 
-    kv_pairs = data.split(',')
+    if len(hits) > 1:
+        filtered_hits = []
+        for hit in hits:
+            if hit['data']['league'] == 'NFL':
+                filtered_hits.append(hit)
+        print(f'WARNING: {len(hits)} players found via screen scrape for {p_name}.',
+              f'After filtering by league, {len(filtered_hits)} player(s) remain.')
 
-    d = {}
-    for key_val in kv_pairs:
-        k, v = key_val.split(':', 1)
-        d[k] = v
+        if filtered_hits:
+            hits = filtered_hits
+        else:
+            return {}
 
-    return d
+    return hits[0]['data']
 
 
 def team_weekly_score(team, week, league):
@@ -391,8 +413,8 @@ def team_weekly_score(team, week, league):
             continue
 
         qry_result = curs.execute('''SELECT nfl_id
-                                             FROM player 
-                                             WHERE yahoo_id = ?''',
+                                     FROM player 
+                                     WHERE yahoo_id = ?''',
                                   (player['player_id'],)).fetchone()
 
         if qry_result:
@@ -421,7 +443,7 @@ def team_weekly_score(team, week, league):
 
 if __name__ == '__main__':
     CONFIG = load_config()
-    # update_player_database()
+    update_player_database()
     # update_stats_database()
     # get_league()
     # find_players_by_score_type('74', '10')
@@ -429,5 +451,5 @@ if __name__ == '__main__':
     # for w in range(18):
     #     download_weekstats(2019, w)
 
-    for w in range(1, 2):
-        calc_week_stats(w)
+    # for w in range(1, 2):
+    #     calc_week_stats(w)
