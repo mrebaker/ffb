@@ -1,3 +1,14 @@
+"""
+ffb
+
+Uses data from APIs including nfl.com and Yahoo Fantasy Football to help a fantasy football manager.
+A lot of work left to do, but aims are to:
+ - identify waiver pickups
+ - learn from past mistakes (cut players getting better, acquired players declining etc
+ - make better use of waiver budget
+"""
+
+
 from datetime import datetime as dt
 import json
 import os
@@ -13,6 +24,9 @@ from yahoo_oauth import OAuth2
 
 
 class PotentialRateLimitError(BaseException):
+    """
+    Custom exception to allow retry of failed API call.
+    """
     pass
 
 
@@ -26,78 +40,33 @@ def authenticate():
 
 def calc_week_stats(week=None):
     oauth = authenticate()
-    game = yapi.Game(oauth, 'nfl')
-    league = game.to_league(config['league_id'])
+    league = yapi.Game(oauth, 'nfl').to_league(config['league_id'])
 
     week = week or league.current_week()
 
-    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
-
-    with open(score_file, 'r') as f:
-        week_stats = json.load(f)
-
-    player_stats = week_stats['games']['102019']['players']
-
     # initialise DB in case we need to map NFL and Yahoo names
-    db_path = os.path.normpath('F:/databases/nfl/players.db')
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = dict_factory
-    curs = conn.cursor()
+    conn, curs = db_connect()
 
     team_scores = {}
     team_missing_players = {}
 
     for team in league.teams():
-        roster = league.to_team(team['team_key']).roster(week=week)
-        scores = {}
-        missing_players = []
-        for player in roster:
-            if player['selected_position'] in ['BN', 'IR']:
-                continue
-
-            qry_result = curs.execute('SELECT nfl_id FROM player WHERE yahoo_id = ?', (player['player_id'],)
-                                  ).fetchone()
-
-            if qry_result:
-                nfl_id = qry_result['nfl_id']
-            else:
-                missing_players.append(f'{player["name"]} (not in database using yahoo_id {player["player_id"]})')
-                continue
-
-            try:
-                stats = player_stats[f'{nfl_id}']
-            except KeyError:
-                missing_players.append(f'{player["name"]} (not in stats using nfl_id {nfl_id})')
-                continue
-
-            for k, v in stats['stats']['week']['2019'][f'{week:02}'].items():
-                # if team['name'] == 'K-Town Grayhawks':
-                #     print(f'{player["name"]}, {k}, {v}')
-
-                if k == 'pts':
-                    continue
-
-                if k not in scores.keys():
-                    scores[k] = int(v)
-                else:
-                    scores[k] += int(v)
-
-        if missing_players:
-            team_missing_players[team['name']] = missing_players
-
-        team_scores[team['name']] = scores
+        score, missing_players = team_weekly_score(team, week, league)
+        team_scores[team['name']] = score
+        team_missing_players[team['name']] = missing_players
 
     stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
 
     team_points = {}
     missing_multipliers = {}
+
     for team, scores in team_scores.items():
         points = 0
         for stat, value in scores.items():
             try:
                 multiplier = next(i['points'] for i in stat_modifiers if i['nfl_id'] == stat)
             except StopIteration:
-                print(f'Couldn\'t find stat with NFL ID {stat} in the database. Defaulting to 0 points.')
+                print(f'No stat with NFL ID {stat} in the database. Defaulting to 0 points.')
                 multiplier = 0
 
             if multiplier is None:
@@ -120,14 +89,20 @@ def calc_week_stats(week=None):
         team2_score = team_points[team2]
         print(f'{team1} {team1_score:.2f} v {team2_score:.2f} {team2}')
 
-    # for team, points in team_points.items():
-    #     print(f'{team}: {points:.2f}')
-
     for team, players in team_missing_players.items():
-        print(f'{team} missing {", ".join(players)}')
+        if players:
+            print(f'{team} missing {", ".join(players)}')
 
     if missing_multipliers:
         print('Missing multipiers', missing_multipliers)
+
+
+def db_connect():
+    db_path = os.path.normpath('F:/databases/nfl/players.db')
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = dict_factory
+    curs = conn.cursor()
+    return conn, curs
 
 
 def dict_factory(cursor, row):
@@ -292,8 +267,9 @@ def update_stats_database():
                 stat_dict["id"],
                 stat_dict["id"])
 
-        curs.execute("""insert or replace into statline (nfl_name, nfl_id, yahoo_name, yahoo_id, points) 
-                        values (?, 
+        curs.execute("""insert or replace into statline 
+                        (nfl_name, nfl_id, yahoo_name, yahoo_id, points)
+                        values (?,
                                 ?, 
                                 (SELECT yahoo_name from statline where nfl_id = CAST(? as text)),
                                 (SELECT yahoo_id from statline where nfl_id = CAST(? as text)),
@@ -336,6 +312,51 @@ def scrape_player(p_name):
     return d
 
 
+def team_weekly_score(team, week, lg):
+    conn, curs = db_connect()
+    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
+    with open(score_file, 'r') as f:
+        week_stats = json.load(f)
+
+    player_stats = week_stats['games']['102019']['players']
+    roster = lg.to_team(team['team_key']).roster(week=week)
+
+    scores = {}
+    missing_players = []
+
+    for player in roster:
+        if player['selected_position'] in ['BN', 'IR']:
+            continue
+
+        qry_result = curs.execute('''SELECT nfl_id 
+                                             FROM player 
+                                             WHERE yahoo_id = ?''',
+                                  (player['player_id'],)).fetchone()
+
+        if qry_result:
+            nfl_id = qry_result['nfl_id']
+        else:
+            txt = f'{player["name"]} (not in database using yahoo_id {player["player_id"]})'
+            missing_players.append(txt)
+            continue
+
+        try:
+            stats = player_stats[f'{nfl_id}']
+        except KeyError:
+            missing_players.append(f'{player["name"]} (not in stats using nfl_id {nfl_id})')
+            continue
+
+        for k, v in stats['stats']['week']['2019'][f'{week:02}'].items():
+            if k == 'pts':
+                continue
+            if k not in scores.keys():
+                scores[k] = int(v)
+            else:
+                scores[k] += int(v)
+
+    return scores, missing_players
+
+
 if __name__ == '__main__':
     config = load_config()
     # update_player_database()
@@ -346,8 +367,5 @@ if __name__ == '__main__':
     # for w in range(18):
     #     download_weekstats(2019, w)
 
-    for w in range(1, 13):
+    for w in range(1, 2):
         calc_week_stats(w)
-
-
-
