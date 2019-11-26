@@ -47,37 +47,16 @@ def calc_week_stats(week=None):
     # initialise DB in case we need to map NFL and Yahoo names
     conn, curs = db_connect()
 
-    team_scores = {}
     team_missing_players = {}
+    team_points = {}
+    team_missing_multipliers = {}
 
     for team in league.teams():
         score, missing_players = team_weekly_score(team, week, league)
-        team_scores[team['name']] = score
+        points, mm = points_from_scores(score)
+        team_points[team['name']] = points
+        team_missing_multipliers[team['name']] = mm
         team_missing_players[team['name']] = missing_players
-
-    stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
-
-    team_points = {}
-    missing_multipliers = {}
-
-    for team, scores in team_scores.items():
-        points = 0
-        for stat, value in scores.items():
-            try:
-                multiplier = next(i['points'] for i in stat_modifiers if i['nfl_id'] == stat)
-            except StopIteration:
-                print(f'No stat with NFL ID {stat} in the database. Defaulting to 0 points.')
-                multiplier = 0
-
-            if multiplier is None:
-                try:
-                    missing_multipliers[str(stat)] += value
-                except KeyError:
-                    missing_multipliers[str(stat)] = value
-                multiplier = 0
-
-            points += value * multiplier
-        team_points[team] = points
 
     week_matchups = league.matchups(week)
 
@@ -93,8 +72,9 @@ def calc_week_stats(week=None):
         if players:
             print(f'{team} missing {", ".join(players)}')
 
-    if missing_multipliers:
-        print('Missing multipiers', missing_multipliers)
+    for team, multipliers in team_missing_multipliers.items():
+        if multipliers:
+            print(f'{team} missing multipiers:', multipliers)
 
 
 def db_connect():
@@ -242,6 +222,30 @@ def update_player_database():
                             WHERE nfl_name = ?''', values)
             conn.commit()
 
+
+def points_from_scores(score_dict):
+    conn, curs = db_connect()
+    stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
+
+    missing_multipliers = {}
+    points = 0
+    for stat, value in score_dict.items():
+        try:
+            multiplier = next(i['points'] for i in stat_modifiers if i['nfl_id'] == stat)
+        except StopIteration:
+            print(f'No stat with NFL ID {stat} in the database. Defaulting to 0 points.')
+            multiplier = 0
+
+        if multiplier is None:
+            try:
+                missing_multipliers[str(stat)] += value
+            except KeyError:
+                missing_multipliers[str(stat)] = value
+            multiplier = 0
+
+        points += value * multiplier
+
+    return points, missing_multipliers
 
 def update_stats_database():
     db_path = os.path.normpath('F:/databases/nfl/players.db')
