@@ -15,6 +15,7 @@ import sqlite3
 import urllib.parse
 from datetime import datetime as dt
 
+import pandas as pd
 import requests
 import yaml
 import yahoo_fantasy_api as yapi
@@ -308,20 +309,26 @@ def points_from_scores(score_dict):
 
 def position_rankings(position, week):
     conn, curs = db_connect()
-    players = curs.execute("""SELECT * FROM player 
+    players = curs.execute("""SELECT nfl_id, yahoo_name FROM player 
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
 
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
+
     with open(score_file, 'r') as f:
-        stats = json.load(f)
+        stats_json = json.load(f)
+        stats = stats_json['games']['102019']['players']
 
     for player in players:
         try:
-            player_stats = stats['games']['102019']['players'][player['nfl_id']]
+            stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{week}']
         except KeyError:
             continue
+        for stat_id, volume in stat_lines.items():
+            player[stat_id] = volume
 
-        print(player_stats)
+    df = pd.DataFrame(players)
+    df.sort_values('pts', ascending=False, inplace=True)
+    print(df)
 
 
 def update_stats_database():
