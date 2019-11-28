@@ -6,6 +6,12 @@ Functions for interacting with a sqlite database to support the Fantasy Football
 import os
 import sqlite3
 
+# Third-party imports
+import yaml
+
+with open('config.yml', 'r') as config_file:
+    CONFIG = yaml.safe_load(config_file)
+
 
 def connect():
     """

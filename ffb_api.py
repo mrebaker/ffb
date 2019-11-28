@@ -10,7 +10,8 @@ import yaml
 import yahoo_fantasy_api as yapi
 from yahoo_oauth import OAuth2
 
-CONFIG = yaml.safe_load('config.yml')
+with open('config.yml', 'r') as config_file:
+    CONFIG = yaml.safe_load(config_file)
 
 
 class PotentialRateLimitError(BaseException):
@@ -39,9 +40,9 @@ def player(p_name):
     if "\'" in p_name:
         return []
 
-    lg = league()
+    lg_obj = league()
     try:
-        details = lg.player_details(p_name)
+        details = lg_obj.player_details(p_name)
     except json.decoder.JSONDecodeError:
         print(f'Waiting for player {p_name}... ')
         raise PotentialRateLimitError
@@ -54,5 +55,5 @@ def league():
     :return: dict representing the league
     """
     oauth = authenticate()
-    lg = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
-    return lg
+    lg_obj = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
+    return lg_obj

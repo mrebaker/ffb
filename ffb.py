@@ -24,6 +24,9 @@ import yaml
 import ffb_db
 import ffb_api
 
+with open('config.yml', 'r') as config_file:
+    CONFIG = yaml.safe_load(config_file)
+
 
 def calc_week_stats(week=None):
     """
@@ -105,16 +108,6 @@ def find_players_by_score_type(nfl_score_id, period):
                         player['stats'][nfl_score_id]]
 
         print('\t'.join(attr_to_show))
-
-
-def load_config():
-    """
-    Wrapper for loading YAML config file
-    :return: dict representing contents of the config file
-    """
-    with open('config.yml', 'r') as f:
-        conf = yaml.safe_load(f)
-    return conf
 
 
 def log(msg):
@@ -218,7 +211,7 @@ def points_from_scores(score_dict):
     :param score_dict: a dict containing the scores and their volume
     :return: points total and a dict of score IDs that have no multiplier in the database.
     """
-    conn, curs = ffb_db.connect()
+    unused_conn, curs = ffb_db.connect()
     stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
 
     missing_multipliers = {}
@@ -251,7 +244,7 @@ def player_weekly_rankings(yahoo_id):
 
     league = ffb_api.league()
 
-    conn, curs = ffb_db.connect()
+    unused_conn, curs = ffb_db.connect()
     player = curs.execute('''SELECT * FROM player WHERE yahoo_id = ?''', (yahoo_id, )).fetchone()
 
     if not player:
@@ -274,7 +267,7 @@ def position_rankings(position, week):
     :param week: integer representing a week of the fantasy football e.g. 9
     :return: a sorted dataframe of all players in that position for that week
     """
-    conn, curs = ffb_db.connect()
+    unused_conn, curs = ffb_db.connect()
     players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
 
@@ -390,7 +383,7 @@ def team_weekly_score(team, week, league):
     :param league: object representing the league resource from Yahoo API
     :return: dict of scores accrued, and a dict of players not in database or stat file
     """
-    conn, curs = ffb_db.connect()
+    unused_conn, curs = ffb_db.connect()
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
@@ -435,10 +428,9 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    CONFIG = load_config()
     # update_player_database()
     # update_stats_database()
-    # get_league()
+    # print(ffb_api.league())
     # find_players_by_score_type('74', '10')
 
     # for w in range(18):
@@ -447,5 +439,5 @@ if __name__ == '__main__':
     # for w in range(1, 2):
     #     calc_week_stats(w)
 
-    position_rankings('QB', 1)
-    # print(player_weekly_rankings('30125'))
+    # print(position_rankings('QB', 1))
+    print(player_weekly_rankings('30125'))
