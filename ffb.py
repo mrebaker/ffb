@@ -308,7 +308,12 @@ def points_from_scores(score_dict):
 
 
 def player_weekly_rankings(yahoo_id):
-    # todo fix this! rankings e.g. Deshaun Watson incorrect
+    """
+    Gets the weekly ranking for a given player within their position group.
+    :param yahoo_id: str of the Yahoo ID number of the player to search
+    :return: a list of the weekly rankings for the player, from Week 1 to the previous week
+    """
+
     oauth = authenticate()
     league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
 
@@ -354,6 +359,7 @@ def position_rankings(position, week):
     df = df.fillna(0)
     df = df.sort_values(by=['pts'], axis=0, ascending=False)
     df = df.reset_index(drop=True)
+    df.index = range(1,len(df)+1)
     return df
 
 
@@ -501,5 +507,5 @@ if __name__ == '__main__':
     # for w in range(1, 2):
     #     calc_week_stats(w)
 
-    # position_rankings('TE', 10)
-    print(player_weekly_rankings('30125'))
+    position_rankings('QB', 1)
+    # print(player_weekly_rankings('30125'))
