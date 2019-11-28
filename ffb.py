@@ -19,7 +19,6 @@ from datetime import datetime as dt
 import pandas as pd
 import requests
 import yaml
-from retry import retry
 
 # local imports
 import ffb_db
@@ -152,9 +151,6 @@ def update_player_database():
                             VALUES (?, ?, ?, ?)''', values)
             conn.commit()
 
-    # get Yahoo league to query name
-    league = ffb_api.league()
-
     players = curs.execute('''SELECT id, nfl_name, yahoo_name,
                               yahoo_id, eligible_positions FROM player''').fetchall()
 
@@ -272,8 +268,14 @@ def player_weekly_rankings(yahoo_id):
 
 
 def position_rankings(position, week):
+    """
+    Ranks all the players within a specified position for a specified week.
+    :param position: 2-letter code representing a position e.g. QB
+    :param week: integer representing a week of the fantasy football e.g. 9
+    :return: a sorted dataframe of all players in that position for that week
+    """
     conn, curs = ffb_db.connect()
-    players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player 
+    players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
 
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
@@ -297,7 +299,7 @@ def position_rankings(position, week):
     df = df.fillna(0)
     df = df.sort_values(by=['pts'], axis=0, ascending=False)
     df = df.reset_index(drop=True)
-    df.index = range(1,len(df)+1)
+    df.index = range(1, len(df)+1)
     return df
 
 

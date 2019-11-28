@@ -6,7 +6,6 @@ Functions for interacting with Yahoo and NFL fantasy football APIs.
 import json
 
 # Third-party imports
-import retry
 import yaml
 import yahoo_fantasy_api as yapi
 from yahoo_oauth import OAuth2
@@ -31,7 +30,6 @@ def authenticate():
     return auth
 
 
-# @retry(PotentialRateLimitError, delay=5, backoff=4, max_delay=250)
 def player(p_name):
     """
     Gets the Yahoo fantasy details for a particular name.
@@ -51,6 +49,10 @@ def player(p_name):
 
 
 def league():
+    """
+    Returns a league from the Yahoo API based on the config file.
+    :return: dict representing the league
+    """
     oauth = authenticate()
     lg = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
     return lg
