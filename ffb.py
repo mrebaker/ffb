@@ -307,9 +307,28 @@ def points_from_scores(score_dict):
     return points, missing_multipliers
 
 
+def player_weekly_rankings(yahoo_id):
+    oauth = authenticate()
+    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
+
+    conn, curs = db_connect()
+    player = curs.execute('''SELECT * FROM player WHERE yahoo_id = ?''', (yahoo_id, )).fetchone()
+
+    if not player:
+        return []
+
+    weekly_rankings = []
+    for week in range(1, league.current_week()):
+        rankings = position_rankings(player['eligible_position'], week)
+        week_score = rankings['yahoo_id'] == yahoo_id
+        weekly_rankings.append(week_score)
+
+    return weekly_rankings
+
+
 def position_rankings(position, week):
     conn, curs = db_connect()
-    players = curs.execute("""SELECT nfl_id, yahoo_name FROM player 
+    players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player 
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
 
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
@@ -327,8 +346,9 @@ def position_rankings(position, week):
             player[stat_id] = volume
 
     df = pd.DataFrame(players)
-    df.sort_values('pts', ascending=False, inplace=True)
-    print(df)
+    df = df.sort_values('pts', ascending=False)
+    df = df.reset_index(drop=True)
+    return df
 
 
 def update_stats_database():
@@ -475,4 +495,5 @@ if __name__ == '__main__':
     # for w in range(1, 2):
     #     calc_week_stats(w)
 
-    position_rankings('TE', 10)
+    # position_rankings('TE', 10)
+    print(player_weekly_rankings(30125))
