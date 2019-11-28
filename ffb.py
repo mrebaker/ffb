@@ -8,36 +8,22 @@ A lot of work left to do, but aims are to:
  - make better use of waiver budget
 """
 
-
+# standard library imports
 import json
 import os
 import sqlite3
 import urllib.parse
 from datetime import datetime as dt
 
+# third party imports
 import pandas as pd
 import requests
 import yaml
-import yahoo_fantasy_api as yapi
 from retry import retry
-from yahoo_oauth import OAuth2
 
-
-class PotentialRateLimitError(BaseException):
-    """
-    Custom exception to allow retry of failed API call.
-    """
-
-
-def authenticate():
-    """
-    Creates an authenticated Yahoo API session, getting a new token if necessary.
-    :return: the authenticated session
-    """
-    auth = OAuth2(None, None, from_file='oauth.json')
-    if not auth.token_is_valid(print_log=False):
-        auth.refresh_access_token()
-    return auth
+# local imports
+import ffb_db
+import ffb_api
 
 
 def calc_week_stats(week=None):
@@ -46,8 +32,7 @@ def calc_week_stats(week=None):
     :param week: Integer referring to a week of the fantasy season
     :return: Nothing
     """
-    oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
+    league = ffb_api.league()
 
     week = week or league.current_week()
 
@@ -79,30 +64,6 @@ def calc_week_stats(week=None):
     for team, multipliers in team_missing_multipliers.items():
         if multipliers:
             print(f'{team} missing multipiers:', multipliers)
-
-
-def db_connect():
-    """
-    Connects to the database containing player and stat info.
-    :return: connection and cursor objects
-    """
-    db_path = os.path.normpath('F:/databases/nfl/players.db')
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = dict_factory
-    curs = conn.cursor()
-    return conn, curs
-
-
-def dict_factory(cursor, row):
-    """
-    Makes sqlite return an indexable dict of results rather than a tuple.
-    Not called natively - just passed to the row_factory attribute.
-    :return: n/a
-    """
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
 
 
 def download_weekstats(season, week):
@@ -147,27 +108,6 @@ def find_players_by_score_type(nfl_score_id, period):
         print('\t'.join(attr_to_show))
 
 
-@retry(PotentialRateLimitError, delay=5, backoff=4, max_delay=250)
-def get_player(p_name):
-    """
-    Gets the Yahoo fantasy details for a particular name.
-    :param p_name: The player's name
-    :return: a dict containing details from the Yahoo fantasy API
-    """
-    if "\'" in p_name:
-        log(f'Unable to search player name {p_name}')
-        return []
-    oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
-    try:
-        details = league.player_details(p_name)
-    except json.decoder.JSONDecodeError:
-        log('Potential rate limit error')
-        print(f'Waiting for player {p_name}... ')
-        raise PotentialRateLimitError
-    return details
-
-
 def load_config():
     """
     Wrapper for loading YAML config file
@@ -194,7 +134,7 @@ def update_player_database():
     Adds players from a week stat file, if missing from the database.
     :return:
     """
-    conn, curs = db_connect()
+    conn, curs = ffb_db.connect()
 
     filename = os.path.normpath('data/nfl-seasonstats-2019-10.json')
     with open(filename, 'r') as f:
@@ -213,8 +153,7 @@ def update_player_database():
             conn.commit()
 
     # get Yahoo league to query name
-    oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
+    league = ffb_api.league()
 
     players = curs.execute('''SELECT id, nfl_name, yahoo_name,
                               yahoo_id, eligible_positions FROM player''').fetchall()
@@ -222,7 +161,7 @@ def update_player_database():
     for player in players:
         # add Yahoo details if missing
         if player['yahoo_id'] is None or player['yahoo_name'] is None:
-            player_yahoo_profile = get_player(player['nfl_name'])
+            player_yahoo_profile = ffb_api.player(player['nfl_name'])
             try:
                 yahoo_id = player_yahoo_profile['player_id']
                 yahoo_name = player['nfl_name']
@@ -250,7 +189,7 @@ def update_player_database():
 
         # add eligible positions if missing
         if player['eligible_positions'] is None:
-            player_yahoo_profile = get_player(player['yahoo_name'])
+            player_yahoo_profile = ffb_api.player(player['yahoo_name'])
             try:
                 eligible_positions = player_yahoo_profile['eligible_positions']
                 # Yahoo API returns a list of dicts, so extract the dict values
@@ -283,7 +222,7 @@ def points_from_scores(score_dict):
     :param score_dict: a dict containing the scores and their volume
     :return: points total and a dict of score IDs that have no multiplier in the database.
     """
-    conn, curs = db_connect()
+    conn, curs = ffb_db.connect()
     stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
 
     missing_multipliers = {}
@@ -314,10 +253,9 @@ def player_weekly_rankings(yahoo_id):
     :return: a list of the weekly rankings for the player, from Week 1 to the previous week
     """
 
-    oauth = authenticate()
-    league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
+    league = ffb_api.league()
 
-    conn, curs = db_connect()
+    conn, curs = ffb_db.connect()
     player = curs.execute('''SELECT * FROM player WHERE yahoo_id = ?''', (yahoo_id, )).fetchone()
 
     if not player:
@@ -334,7 +272,7 @@ def player_weekly_rankings(yahoo_id):
 
 
 def position_rankings(position, week):
-    conn, curs = db_connect()
+    conn, curs = ffb_db.connect()
     players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player 
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
 
@@ -450,7 +388,7 @@ def team_weekly_score(team, week, league):
     :param league: object representing the league resource from Yahoo API
     :return: dict of scores accrued, and a dict of players not in database or stat file
     """
-    conn, curs = db_connect()
+    conn, curs = ffb_db.connect()
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
