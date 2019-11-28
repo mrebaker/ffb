@@ -308,6 +308,7 @@ def points_from_scores(score_dict):
 
 
 def player_weekly_rankings(yahoo_id):
+    # todo fix this! rankings e.g. Deshaun Watson incorrect
     oauth = authenticate()
     league = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
 
@@ -317,10 +318,11 @@ def player_weekly_rankings(yahoo_id):
     if not player:
         return []
 
+    end_week = league.current_week()
     weekly_rankings = []
-    for week in range(1, league.current_week()):
-        rankings = position_rankings(player['eligible_position'], week)
-        week_score = rankings['yahoo_id'] == yahoo_id
+    for week in range(1, end_week):
+        rankings = position_rankings(player['eligible_positions'], week)
+        week_score = rankings[rankings['yahoo_id'] == yahoo_id].index.values.astype(int)[0]
         weekly_rankings.append(week_score)
 
     return weekly_rankings
@@ -339,14 +341,18 @@ def position_rankings(position, week):
 
     for player in players:
         try:
-            stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{week}']
+            stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{week:02}']
         except KeyError:
             continue
         for stat_id, volume in stat_lines.items():
-            player[stat_id] = volume
+            if volume is None:
+                player[stat_id] = 0
+            else:
+                player[stat_id] = float(volume)
 
     df = pd.DataFrame(players)
-    df = df.sort_values('pts', ascending=False)
+    df = df.fillna(0)
+    df = df.sort_values(by=['pts'], axis=0, ascending=False)
     df = df.reset_index(drop=True)
     return df
 
@@ -496,4 +502,4 @@ if __name__ == '__main__':
     #     calc_week_stats(w)
 
     # position_rankings('TE', 10)
-    print(player_weekly_rankings(30125))
+    print(player_weekly_rankings('30125'))
