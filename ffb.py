@@ -16,6 +16,7 @@ import urllib.parse
 from datetime import datetime as dt
 
 # third party imports
+from matplotlib import pyplot as plt
 import pandas as pd
 import requests
 import yaml
@@ -235,7 +236,7 @@ def points_from_scores(score_dict):
     return points, missing_multipliers
 
 
-def player_weekly_rankings(yahoo_id):
+def player_weekly_rankings(*yahoo_ids):
     """
     Gets the weekly ranking for a given player within their position group.
     :param yahoo_id: str of the Yahoo ID number of the player to search
@@ -243,21 +244,42 @@ def player_weekly_rankings(yahoo_id):
     """
 
     league = ffb_api.league()
-
     unused_conn, curs = ffb_db.connect()
-    player = curs.execute('''SELECT * FROM player WHERE yahoo_id = ?''', (yahoo_id, )).fetchone()
 
-    if not player:
+    query = f'SELECT * FROM player WHERE yahoo_id IN ({",".join("?"*len(yahoo_ids))})'
+    players = curs.execute(query, yahoo_ids).fetchall()
+
+    if not players:
         return []
 
     end_week = league.current_week()
-    weekly_rankings = []
-    for week in range(1, end_week):
-        rankings = position_rankings(player['eligible_positions'], week)
-        week_score = rankings[rankings['yahoo_id'] == yahoo_id].index.values.astype(int)[0]
-        weekly_rankings.append(week_score)
+    rankings = {}
 
-    return weekly_rankings
+    fig = plt.figure()
+    ax = plt.subplot(111)
+
+    for player in players:
+        player_rankings = []
+        for week in range(1, end_week):
+            pos_rank = position_rankings(player['eligible_positions'], week)
+            stat_row = pos_rank[pos_rank['yahoo_id'] == player['yahoo_id']]
+            week_score = stat_row.index.values.astype(int)[0]
+            player_rankings.append(week_score)
+
+        rankings[player['yahoo_id']] = player_rankings
+        ax.plot(player_rankings, label=player['yahoo_name'])
+
+    box = ax.get_position()
+
+    # shrink plot width by 20% to allow room for legend
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5))
+
+    # flip Y axis so good weeks are on top
+    fig.gca().invert_yaxis()
+    plt.show()
+    return rankings
 
 
 def position_rankings(position, week):
@@ -440,4 +462,4 @@ if __name__ == '__main__':
     #     calc_week_stats(w)
 
     # print(position_rankings('QB', 1))
-    print(player_weekly_rankings('30125'))
+    print(player_weekly_rankings('30125', '30123'))
