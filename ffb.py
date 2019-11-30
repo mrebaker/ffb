@@ -295,8 +295,7 @@ def position_rankings(position, week):
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
 
     with open(score_file, 'r') as f:
-        stats_json = json.load(f)
-        stats = stats_json['games']['102019']['players']
+        stats = json.load(f)['games']['102019']['players']
 
     for player in players:
         try:
@@ -305,9 +304,8 @@ def position_rankings(position, week):
             player['DNS'] = 1
             continue
         for stat_id, volume in stat_lines.items():
-            stat_details = curs.execute("""SELECT * FROM statline
-                                           WHERE nfl_id = ?""", (stat_id,)).fetchone()
-            stat_name = stat_details['nfl_name']
+            stat_name = curs.execute("""SELECT nfl_name FROM statline
+                                        WHERE nfl_id = ?""", (stat_id,)).fetchone()['nfl_name']
             if volume is None:
                 player[stat_name] = 0
             else:
