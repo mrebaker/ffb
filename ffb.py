@@ -292,7 +292,6 @@ def position_rankings(position, week):
     unused_conn, curs = ffb_db.connect()
     players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
-
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
 
     with open(score_file, 'r') as f:
@@ -303,18 +302,23 @@ def position_rankings(position, week):
         try:
             stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{week:02}']
         except KeyError:
+            player['DNS'] = 1
             continue
         for stat_id, volume in stat_lines.items():
+            stat_details = curs.execute("""SELECT * FROM statline
+                                           WHERE nfl_id = ?""", (stat_id,)).fetchone()
+            stat_name = stat_details['nfl_name']
             if volume is None:
-                player[stat_id] = 0
+                player[stat_name] = 0
             else:
-                player[stat_id] = float(volume)
+                player[stat_name] = float(volume)
 
     df = pd.DataFrame(players)
     df = df.fillna(0)
     df = df.sort_values(by=['pts'], axis=0, ascending=False)
     df = df.reset_index(drop=True)
     df.index = range(1, len(df)+1)
+    df.to_csv(f'position_rankings_{week:02}_{position}.csv')
     return df
 
 
@@ -461,5 +465,5 @@ if __name__ == '__main__':
     # for w in range(1, 2):
     #     calc_week_stats(w)
 
-    # print(position_rankings('QB', 1))
-    print(player_weekly_rankings('30125', '30123'))
+    print(position_rankings('QB', 8))
+    # print(player_weekly_rankings('30125'))

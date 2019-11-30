@@ -20,6 +20,7 @@ def connect():
     """
     db_path = os.path.normpath('F:/databases/nfl/players.db')
     conn = sqlite3.connect(db_path)
+    # conn.set_trace_callback(print)
     conn.row_factory = dict_factory
     curs = conn.cursor()
     return conn, curs
