@@ -11,20 +11,29 @@ import requests
 import api
 
 
-def download_weekstats(season, week):
+def download_stat_file(stat_type, week):
     """
     Gets the player stats for the given season and week
-    :param season: integer referring to the requested fantasy year e.g. 2019
-    :param week: integer referring to the requested fantasy week
+    :param stat_type: str 'week' or 'season'
+    :param week: the week requested, or None for the last completed
     :return: nothing
     """
-    url = f'https://api.fantasy.nfl.com/v2/players/weekstats?season={season}&week={week:02}'
+
+    if stat_type == 'week':
+        url = f'https://api.fantasy.nfl.com/v2/players/weekstats?season=2019&week={week}'
+    elif stat_type == 'season':
+        url = f'http://api.fantasy.nfl.com/v1/players/stats?statType=seasonStats&season=2019&week={week}&format=json'
+    else:
+        raise RuntimeError("stat_type must be 'week' or 'season'")
+
     resp = requests.get(url)
 
     if resp.status_code == 200:
-        filename = f'data/nfl-weekstats-{season}-{week}.json'
+        filename = f'data/nfl-{stat_type}stats-2019-{week:02}.json'
         with open(filename, 'w+') as f:
             f.write(resp.text)
+    else:
+        raise requests.HTTPError
 
 
 def load_stat_file(stat_type, week=None):
@@ -45,7 +54,7 @@ def load_stat_file(stat_type, week=None):
         with open(score_file, 'r') as f:
             stats = json.load(f)['games']['102019']['players']
     except FileNotFoundError:
-        download_weekstats(2019, week)
+        download_stat_file(stat_type, week)
         with open(score_file, 'r') as f:
             stats = json.load(f)['games']['102019']['players']
 
