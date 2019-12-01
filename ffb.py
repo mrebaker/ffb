@@ -17,6 +17,7 @@ from datetime import datetime as dt
 
 # third party imports
 from matplotlib import pyplot as plt
+import numpy as np
 import pandas as pd
 import requests
 import yaml
@@ -239,7 +240,7 @@ def points_from_scores(score_dict):
 def player_weekly_rankings(*yahoo_ids):
     """
     Gets the weekly ranking for a given player within their position group.
-    :param yahoo_id: str of the Yahoo ID number of the player to search
+    :param yahoo_ids: any number of Yahoo ID(s) for player(s) to search
     :return: a list of the weekly rankings for the player, from Week 1 to the previous week
     """
 
@@ -263,7 +264,10 @@ def player_weekly_rankings(*yahoo_ids):
         for week in range(1, end_week):
             pos_rank = position_rankings(player['eligible_positions'], week)
             stat_row = pos_rank[pos_rank['yahoo_id'] == player['yahoo_id']]
-            week_score = stat_row.index.values.astype(int)[0]
+            if stat_row.iloc[0]['DNS'] == 1:
+                week_score = np.nan
+            else:
+                week_score = stat_row.index.values.astype(int)[0]
             player_rankings.append(week_score)
 
         rankings[player['yahoo_id']] = player_rankings
@@ -282,24 +286,30 @@ def player_weekly_rankings(*yahoo_ids):
     return rankings
 
 
-def position_rankings(position, week):
+def position_rankings(position, period):
     """
     Ranks all the players within a specified position for a specified week.
     :param position: 2-letter code representing a position e.g. QB
-    :param week: integer representing a week of the fantasy football e.g. 9
+    :param period: string 'season' for season, else integer representing a week of
+    the fantasy football season e.g. 9
     :return: a sorted dataframe of all players in that position for that week
     """
     unused_conn, curs = ffb_db.connect()
     players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
-    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
+
+    if period == 'season':
+        current_week = ffb_api.league().current_week()
+        score_file = os.path.normpath(f'data/nfl-seasonstats-2019-{current_week}.json')
+    else:
+        score_file = os.path.normpath(f'data/nfl-weekstats-2019-{period}.json')
 
     with open(score_file, 'r') as f:
         stats = json.load(f)['games']['102019']['players']
 
     for player in players:
         try:
-            stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{week:02}']
+            stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{period:02}']
         except KeyError:
             player['DNS'] = 1
             continue
@@ -316,7 +326,7 @@ def position_rankings(position, week):
     df = df.sort_values(by=['pts'], axis=0, ascending=False)
     df = df.reset_index(drop=True)
     df.index = range(1, len(df)+1)
-    df.to_csv(f'position_rankings_{week:02}_{position}.csv')
+    df.to_csv(f'position_rankings_{period:02}_{position}.csv')
     return df
 
 
@@ -464,4 +474,5 @@ if __name__ == '__main__':
     #     calc_week_stats(w)
 
     print(position_rankings('QB', 8))
+    print(position_rankings('QB', 'season'))
     # print(player_weekly_rankings('30125'))
