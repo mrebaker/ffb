@@ -15,16 +15,17 @@ import sqlite3
 import urllib.parse
 from datetime import datetime as dt
 
-# third party imports
-from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
 import yaml
+# third party imports
+from matplotlib import pyplot as plt
 
 # local imports
-import ffb_db
-import ffb_api
+import api
+import db
+import util
 
 with open('config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
@@ -36,7 +37,7 @@ def calc_week_stats(week=None):
     :param week: Integer referring to a week of the fantasy season
     :return: Nothing
     """
-    league = ffb_api.league()
+    league = api.league()
 
     week = week or league.current_week()
 
@@ -70,25 +71,9 @@ def calc_week_stats(week=None):
             print(f'{team} missing multipiers:', multipliers)
 
 
-def download_weekstats(season, week):
-    """
-    Gets the player stats for the given season and week
-    :param season: integer referring to the requested fantasy year e.g. 2019
-    :param week: integer referring to the requested fantasy week
-    :return: nothing
-    """
-    url = f'https://api.fantasy.nfl.com/v2/players/weekstats?season={season}&week={week:02}'
-    resp = requests.get(url)
-
-    if resp.status_code == 200:
-        filename = f'data/nfl-weekstats-{season}-{week}.json'
-        with open(filename, 'w+') as f:
-            f.write(resp.text)
-
-
 def find_players_by_score_type(nfl_score_id, period):
     """
-    Prints a table of all players who recorded particular boxscore stats.
+    Prints a table of all players who recorded particular box score stats.
     :param nfl_score_id: The ID of the requested stat per the NFL Fantasy API
     :param period: "season" for the whole season, otherwise just uses 2019 week 10
     :return:
@@ -128,7 +113,7 @@ def update_player_database():
     Adds players from a week stat file, if missing from the database.
     :return:
     """
-    conn, curs = ffb_db.connect()
+    conn, curs = db.connect()
 
     filename = os.path.normpath('data/nfl-seasonstats-2019-10.json')
     with open(filename, 'r') as f:
@@ -152,7 +137,7 @@ def update_player_database():
     for player in players:
         # add Yahoo details if missing
         if player['yahoo_id'] is None or player['yahoo_name'] is None:
-            player_yahoo_profile = ffb_api.player(player['nfl_name'])
+            player_yahoo_profile = api.player(player['nfl_name'])
             try:
                 yahoo_id = player_yahoo_profile['player_id']
                 yahoo_name = player['nfl_name']
@@ -180,7 +165,7 @@ def update_player_database():
 
         # add eligible positions if missing
         if player['eligible_positions'] is None:
-            player_yahoo_profile = ffb_api.player(player['yahoo_name'])
+            player_yahoo_profile = api.player(player['yahoo_name'])
             try:
                 eligible_positions = player_yahoo_profile['eligible_positions']
                 # Yahoo API returns a list of dicts, so extract the dict values
@@ -213,7 +198,7 @@ def points_from_scores(score_dict):
     :param score_dict: a dict containing the scores and their volume
     :return: points total and a dict of score IDs that have no multiplier in the database.
     """
-    unused_conn, curs = ffb_db.connect()
+    unused_conn, curs = db.connect()
     stat_modifiers = curs.execute('SELECT * FROM statline').fetchall()
 
     missing_multipliers = {}
@@ -244,8 +229,8 @@ def player_weekly_rankings(*yahoo_ids):
     :return: a list of the weekly rankings for the player, from Week 1 to the previous week
     """
 
-    league = ffb_api.league()
-    unused_conn, curs = ffb_db.connect()
+    league = api.league()
+    unused_conn, curs = db.connect()
 
     query = f'SELECT * FROM player WHERE yahoo_id IN ({",".join("?"*len(yahoo_ids))})'
     players = curs.execute(query, yahoo_ids).fetchall()
@@ -286,26 +271,21 @@ def player_weekly_rankings(*yahoo_ids):
     return rankings
 
 
-def position_rankings(position, period):
+def position_rankings(position, stat_type, period=None):
     """
     Ranks all the players within a specified position for a specified week.
     :param position: 2-letter code representing a position e.g. QB
-    :param period: string 'season' for season, else integer representing a week of
-    the fantasy football season e.g. 9
+    :param stat_type: str 'season ' or 'week'
+    :param period: int representing a week of the fantasy football season e.g. 9 or none for
+                   current week
     :return: a sorted dataframe of all players in that position for that week
     """
-    unused_conn, curs = ffb_db.connect()
+    unused_conn, curs = db.connect()
     players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
 
-    if period == 'season':
-        current_week = ffb_api.league().current_week()
-        score_file = os.path.normpath(f'data/nfl-seasonstats-2019-{current_week}.json')
-    else:
-        score_file = os.path.normpath(f'data/nfl-weekstats-2019-{period}.json')
-
-    with open(score_file, 'r') as f:
-        stats = json.load(f)['games']['102019']['players']
+    stats = util.load_stat_file(stat_type, period)
+    period = period or api.league().current_week()
 
     for player in players:
         try:
@@ -417,7 +397,7 @@ def team_weekly_score(team, week, league):
     :param league: object representing the league resource from Yahoo API
     :return: dict of scores accrued, and a dict of players not in database or stat file
     """
-    unused_conn, curs = ffb_db.connect()
+    unused_conn, curs = db.connect()
     score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
@@ -465,14 +445,10 @@ if __name__ == '__main__':
     # update_player_database()
     # update_stats_database()
     # print(ffb_api.league())
-    # find_players_by_score_type('74', '10')
-
-    # for w in range(18):
-    #     download_weekstats(2019, w)
 
     # for w in range(1, 2):
     #     calc_week_stats(w)
 
-    print(position_rankings('QB', 8))
+    print(position_rankings('QB', 'week', 8))
     print(position_rankings('QB', 'season'))
     # print(player_weekly_rankings('30125'))
