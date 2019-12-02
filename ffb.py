@@ -108,6 +108,26 @@ def log(msg):
         f.write(f'{dt.now().strftime("%Y-%m-%d %H:%M:s")} {msg}\n')
 
 
+def minmax(position):
+    """
+    Plots the best and worst weekly rankings for each player in the specified position group.
+    :param position: str, 2 letters representing position group e.g. QB
+    :return: Nothing
+    """
+    unused_conn, curs = db.connect()
+    players = curs.execute('SELECT * FROM player WHERE eligible_positions = ?', (position, ))
+    week_limit = api.league().current_week()
+    fig = plt.figure()
+    ax = plt.subplot(111)
+    for player in players:
+        ranks = player_weekly_rankings(player['yahoo_id'], plot=False).values()
+        player['best_rank'] = min(ranks)
+        player['worst_rank'] = max(ranks)
+        ax.scatter(min(ranks), max(ranks))
+
+    fig.show()
+
+
 def update_player_database():
     """
     Adds players from a week stat file, if missing from the database.
@@ -222,7 +242,7 @@ def points_from_scores(score_dict):
     return points, missing_multipliers
 
 
-def player_weekly_rankings(*yahoo_ids):
+def player_weekly_rankings(*yahoo_ids, plot=True):
     """
     Gets the weekly ranking for a given player within their position group.
     :param yahoo_ids: any number of Yahoo ID(s) for player(s) to search
@@ -241,13 +261,14 @@ def player_weekly_rankings(*yahoo_ids):
     end_week = league.current_week()
     rankings = {}
 
-    fig = plt.figure()
-    ax = plt.subplot(111)
+    if plot:
+        fig = plt.figure()
+        ax = plt.subplot(111)
 
     for player in players:
         player_rankings = []
         for week in range(1, end_week):
-            pos_rank = position_rankings(player['eligible_positions'], week)
+            pos_rank = position_rankings(player['eligible_positions'], 'week', week)
             stat_row = pos_rank[pos_rank['yahoo_id'] == player['yahoo_id']]
             if stat_row.iloc[0]['DNS'] == 1:
                 week_score = np.nan
@@ -256,18 +277,18 @@ def player_weekly_rankings(*yahoo_ids):
             player_rankings.append(week_score)
 
         rankings[player['yahoo_id']] = player_rankings
-        ax.plot(player_rankings, label=player['yahoo_name'])
+        if plot:
+            ax.plot(player_rankings, label=player['yahoo_name'])
 
-    box = ax.get_position()
+    if plot:
+        box = ax.get_position()
+        # shrink plot width by 20% to allow room for legend
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5))
+        # flip Y axis so good weeks are on top
+        fig.gca().invert_yaxis()
+        plt.show()
 
-    # shrink plot width by 20% to allow room for legend
-    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-
-    ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5))
-
-    # flip Y axis so good weeks are on top
-    fig.gca().invert_yaxis()
-    plt.show()
     return rankings
 
 
@@ -449,6 +470,7 @@ if __name__ == '__main__':
     # for w in range(1, 2):
     #     calc_week_stats(w)
 
-    print(position_rankings('QB', 'week', 8))
-    print(position_rankings('QB', 'season'))
+    # print(position_rankings('QB', 'week', 8))
+    # print(position_rankings('QB', 'season'))
+    minmax('QB')
     # print(player_weekly_rankings('30125'))
