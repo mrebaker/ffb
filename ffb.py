@@ -119,11 +119,25 @@ def minmax(position):
     week_limit = api.league().current_week()
     fig = plt.figure()
     ax = plt.subplot(111)
+
+    week_ranks = {}
+    for week in range(1, week_limit):
+        ranks = position_rankings(position, 'week', week)
+        week_limit[week] = ranks
+
+    player_ranks = {}
     for player in players:
-        ranks = player_weekly_rankings(player['yahoo_id'], plot=False).values()
-        player['best_rank'] = min(ranks)
-        player['worst_rank'] = max(ranks)
-        ax.scatter(min(ranks), max(ranks))
+        rank_list = []
+        for week in range(1, week_limit):
+            df = week_ranks[week]
+            row = df[df['yahoo_id'] == player['yahoo_id']]
+            if row.iloc[0]['DNS'] == 1:
+                rank = np.nan
+            else:
+                rank = row.index.values.astype(int)[0]
+            rank_list.append(rank)
+
+        ax.scatter(min(rank_list), max(rank_list))
 
     fig.show()
 
