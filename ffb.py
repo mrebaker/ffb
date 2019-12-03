@@ -7,6 +7,7 @@ A lot of work left to do, but aims are to:
  - learn from past mistakes (cut players getting better, acquired players declining etc
  - make better use of waiver budget
 """
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 
 # standard library imports
 import json
@@ -118,12 +119,12 @@ def minmax(position):
     players = curs.execute('SELECT * FROM player WHERE eligible_positions = ?', (position, ))
     week_limit = api.league().current_week()
     fig = plt.figure()
-    ax = plt.subplot(111)
+    ax = plt.subplot(111, projection='3d')
 
     week_ranks = {}
     for week in range(1, week_limit):
         ranks = position_rankings(position, 'week', week)
-        week_limit[week] = ranks
+        week_ranks[week] = ranks
 
     player_ranks = {}
     for player in players:
@@ -136,10 +137,16 @@ def minmax(position):
             else:
                 rank = row.index.values.astype(int)[0]
             rank_list.append(rank)
+        best_rank = np.nanmin(rank_list)
+        worst_rank = np.nanmax(rank_list)
+        median_rank = np.nanmedian(rank_list)
+        ax.scatter(best_rank, worst_rank, median_rank)
+        ax.text(best_rank, worst_rank, median_rank, player['short_name'])
+        ax.set_xlabel('best rank')
+        ax.set_ylabel('worst rank')
+        ax.set_zlabel('median rank')
 
-        ax.scatter(min(rank_list), max(rank_list))
-
-    fig.show()
+    plt.show()
 
 
 def update_player_database():
