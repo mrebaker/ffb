@@ -16,11 +16,11 @@ import sqlite3
 import urllib.parse
 from datetime import datetime as dt
 
+# third party imports
 import numpy as np
 import pandas as pd
 import requests
 import yaml
-# third party imports
 from matplotlib import pyplot as plt
 
 # local imports

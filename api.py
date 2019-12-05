@@ -28,7 +28,7 @@ def authenticate():
     :return: the authenticated session
     """
     auth = OAuth2(None, None, from_file='oauth.json')
-    if not auth.token_is_valid(print_log=False):
+    if not auth.token_is_valid():
         auth.refresh_access_token()
     return auth
 
