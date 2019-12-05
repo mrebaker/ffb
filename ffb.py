@@ -77,7 +77,17 @@ def evaluate_predictions():
     Gets player predictions for each available week and compares with predicted points.
     :return: nothing - just prints, and writes results to sqlite database
     """
-    pass
+    week_limit = api.league().current_week()
+    teams = api.league().teams()
+
+    for team in teams:
+        team_obj = api.league().to_team(team['team_key'])
+        for i in range(1, week_limit):
+            matchup = team_obj.matchup(i)
+            points = matchup[0]['0']['teams']['0']['team'][1]
+            proj_points = float(points['team_projected_points']['total'])
+            act_points = float(points['team_points']['total'])
+            print(f'{team["name"]}: proj {proj_points} actual {act_points} diff {act_points-proj_points}')
 
 
 def find_players_by_score_type(nfl_score_id, period):
@@ -501,5 +511,6 @@ if __name__ == '__main__':
 
     # print(position_rankings('QB', 'week', 8))
     # print(position_rankings('QB', 'season'))
-    minmax('QB')
+    # minmax('QB')
     # print(player_weekly_rankings('30125'))
+    evaluate_predictions()
