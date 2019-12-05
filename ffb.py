@@ -7,7 +7,6 @@ A lot of work left to do, but aims are to:
  - learn from past mistakes (cut players getting better, acquired players declining etc
  - make better use of waiver budget
 """
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 
 # standard library imports
 import json
@@ -22,6 +21,7 @@ import pandas as pd
 import requests
 import yaml
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 
 # local imports
 import api
@@ -162,7 +162,7 @@ def update_player_database():
 
     for player in player_stats:
         result = curs.execute('SELECT * FROM player WHERE nfl_id = ?', (player['id'],)).fetchall()
-        if len(result) == 0:
+        if not result:
             values = (player['name'],
                       player['id'],
                       player['esbid'],
