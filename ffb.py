@@ -72,6 +72,14 @@ def calc_week_stats(week=None):
             print(f'{team} missing multipiers:', multipliers)
 
 
+def evaluate_predictions():
+    """
+    Gets player predictions for each available week and compares with predicted points.
+    :return: nothing - just prints, and writes results to sqlite database
+    """
+    pass
+
+
 def find_players_by_score_type(nfl_score_id, period):
     """
     Prints a table of all players who recorded particular box score stats.
