@@ -75,19 +75,34 @@ def calc_week_stats(week=None):
 def evaluate_predictions():
     """
     Gets player predictions for each available week and compares with predicted points.
-    :return: nothing - just prints, and writes results to sqlite database
+    :return: nothing
     """
     week_limit = api.league().current_week()
     teams = api.league().teams()
-
+    points_list = []
     for team in teams:
         team_obj = api.league().to_team(team['team_key'])
-        for i in range(1, week_limit):
-            matchup = team_obj.matchup(i)
+        for week in range(1, week_limit):
+            d = {}
+            matchup = team_obj.matchup(week)
             points = matchup[0]['0']['teams']['0']['team'][1]
-            proj_points = float(points['team_projected_points']['total'])
-            act_points = float(points['team_points']['total'])
-            print(f'{team["name"]}: proj {proj_points} actual {act_points} diff {act_points-proj_points}')
+            d['team_id'] = team['team_key']
+            d['week'] = week
+            d['proj_points'] = float(points['team_projected_points']['total'])
+            d['act_points'] = float(points['team_points']['total'])
+
+            points_list.append(d)
+
+    df = pd.DataFrame(points_list)
+    df['residual'] = df['act_points'] - df['proj_points']
+    fig, axs = plt.subplots(nrows=1, ncols=2)
+
+    axs[0].scatter(df['proj_points'], df['act_points'], c=df['residual'], cmap='plasma')
+    axs[1].scatter(df['proj_points'], df['residual'])
+
+    axs[0].set_xlabel = 'projected points'
+    axs[0].set_ylabel = 'actual points'
+    plt.show()
 
 
 def find_players_by_score_type(nfl_score_id, period):
