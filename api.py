@@ -5,6 +5,7 @@ Functions for interacting with Yahoo and NFL fantasy football APIs.
 # Standard library imports
 import json
 import urllib.parse
+import os
 import requests
 
 # Third-party imports
@@ -59,6 +60,21 @@ def league():
     oauth = authenticate()
     lg_obj = yapi.Game(oauth, 'nfl').to_league(CONFIG['league_id'])
     return lg_obj
+
+
+def refresh_nfl_game_data():
+    target_folder = 'data_in'
+
+    for year in range(2015, 2020):
+        for week in range(1, 17):
+            filename = f'nfl-weekstats-{year}-{week:02}.json'
+            filepath = os.path.sep.join([target_folder, filename])
+            if not os.path.isfile(filepath):
+                url = f'https://api.fantasy.nfl.com/v2/players/weekstats?season={year}&week={week:02}'
+                response = requests.get(url)
+                if response.status_code == 200:
+                    with open(filepath, 'w+') as f:
+                        f.write(response.json())
 
 
 def scrape_player(p_name):
