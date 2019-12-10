@@ -516,4 +516,7 @@ if __name__ == '__main__':
     # print(position_rankings('QB', 'season'))
     # minmax('QB')
     # print(player_weekly_rankings('30125'))
-    evaluate_predictions()
+    # evaluate_predictions()
+
+    # api.refresh_nfl_game_data()
+    db.load_nfl_game_data()

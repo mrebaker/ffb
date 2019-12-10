@@ -74,7 +74,7 @@ def refresh_nfl_game_data():
                 response = requests.get(url)
                 if response.status_code == 200:
                     with open(filepath, 'w+') as f:
-                        f.write(response.json())
+                        f.write(response.text)
 
 
 def scrape_player(p_name):
