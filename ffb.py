@@ -113,9 +113,9 @@ def find_players_by_score_type(nfl_score_id, period):
     :return:
     """
     if period == 'season':
-        score_file = os.path.normpath('data/nfl-seasonstats-2019-10.json')
+        score_file = os.path.normpath('data_in/nfl-seasonstats-2019-10.json')
     else:
-        score_file = os.path.normpath('data/nfl-weekstats-2019-10.json')
+        score_file = os.path.normpath('data_in/nfl-weekstats-2019-10.json')
 
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
@@ -189,7 +189,7 @@ def update_player_database():
     """
     conn, curs = db.connect()
 
-    filename = os.path.normpath('data/nfl-seasonstats-2019-10.json')
+    filename = os.path.normpath('data_in/nfl-seasonstats-2019-10.json')
     with open(filename, 'r') as f:
         player_stats = json.load(f)['players']
 
@@ -401,7 +401,7 @@ def update_stats_database():
                         yahoo_id text,
                         points real)''')
 
-    nfl_stats_file = os.path.normpath('data/nfl-stats.json')
+    nfl_stats_file = os.path.normpath('data_in/nfl-stats.json')
 
     with open(nfl_stats_file, 'r') as f:
         statlines = json.load(f)
@@ -473,7 +473,7 @@ def team_weekly_score(team, week, league):
     :return: dict of scores accrued, and a dict of players not in database or stat file
     """
     unused_conn, curs = db.connect()
-    score_file = os.path.normpath(f'data/nfl-weekstats-2019-{week}.json')
+    score_file = os.path.normpath(f'data_in/nfl-weekstats-2019-{week}.json')
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
 
