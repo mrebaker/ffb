@@ -300,6 +300,7 @@ def player_weekly_rankings(*yahoo_ids, plot=True):
     """
     Gets the weekly ranking for a given player within their position group.
     :param yahoo_ids: any number of Yahoo ID(s) for player(s) to search
+    :param plot: whether to show plots of the weekly rankings or not
     :return: a list of the weekly rankings for the player, from Week 1 to the previous week
     """
 
