@@ -28,7 +28,7 @@ import api
 import db
 import util
 
-with open('config.yml', 'r') as config_file:
+with open('_config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
 
 
@@ -129,17 +129,6 @@ def find_players_by_score_type(nfl_score_id, period):
                         player['stats'][nfl_score_id]]
 
         print('\t'.join(attr_to_show))
-
-
-def log(msg):
-    """
-    Very basic log file writer
-    :param msg: the text to write to the log file
-    :return: Nothing
-    """
-    log_file = 'log.txt'
-    with open(log_file, 'a+') as f:
-        f.write(f'{dt.now().strftime("%Y-%m-%d %H:%M:s")} {msg}\n')
 
 
 def minmax(position):

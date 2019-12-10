@@ -12,7 +12,7 @@ import yaml
 import yahoo_fantasy_api as yapi
 from yahoo_oauth import OAuth2
 
-with open('config.yml', 'r') as config_file:
+with open('_config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
 
 

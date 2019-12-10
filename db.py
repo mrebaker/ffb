@@ -9,7 +9,7 @@ import sqlite3
 # Third-party imports
 import yaml
 
-with open('config.yml', 'r') as config_file:
+with open('_config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
 
 
