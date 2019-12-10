@@ -205,8 +205,6 @@ def update_player_database():
                 yahoo_id = player_yahoo_profile['player_id']
                 yahoo_name = player['nfl_name']
             except TypeError:
-                log(f'Unable to match NFL player name "{player["nfl_name"]}" to a Yahoo player.')
-                log('Trying screen scrape')
                 scraped_player = scrape_player(player['nfl_name'])
 
                 if not scraped_player:

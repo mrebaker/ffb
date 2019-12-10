@@ -27,7 +27,7 @@ def authenticate():
     Creates an authenticated Yahoo API session, getting a new token if necessary.
     :return: the authenticated session
     """
-    auth = OAuth2(None, None, from_file='oauth.json')
+    auth = OAuth2(None, None, from_file='_oauth.json')
     if not auth.token_is_valid():
         auth.refresh_access_token()
     return auth
