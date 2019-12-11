@@ -4,6 +4,7 @@ Functions for interacting with Yahoo and NFL fantasy football APIs.
 
 # Standard library imports
 import json
+import logging
 import urllib.parse
 import os
 import requests
@@ -15,6 +16,8 @@ from yahoo_oauth import OAuth2
 
 with open('_config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
+
+logging.basicConfig(filename='ffb.log', level=logging.DEBUG)
 
 
 class PotentialRateLimitError(BaseException):
@@ -44,10 +47,13 @@ def player(p_name):
         return []
 
     lg_obj = league()
+    log = logging.getLogger()
+
     try:
+        log.info(p_name)
         details = lg_obj.player_details(p_name)
     except json.decoder.JSONDecodeError:
-        print(f'Waiting for player {p_name}... ')
+        log.warning(f'Potential rate limit error for player {p_name}')
         raise PotentialRateLimitError
     return details
 

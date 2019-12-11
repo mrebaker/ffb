@@ -25,11 +25,14 @@ def build_database():
     """
     db_folder = os.path.normpath('F:/Databases/nfl')
     db_filename = 'players.db'
-    if os.path.isfile(os.path.join(db_folder, db_filename)) or \
-            os.path.isfile(os.path.join(db_folder, db_filename + '-journal')):
-        raise RuntimeError('Remove or rename existing database file(s) before proceeding.')
+    #
+    # if os.path.isfile(os.path.join(db_folder, db_filename)) or \
+    #         os.path.isfile(os.path.join(db_folder, db_filename + '-journal')):
+    #     raise RuntimeError('Remove or rename existing database file(s) before proceeding.')
 
-    conn, curs = connect()
+    update_player_data()
+    # update_stats_database()
+    # load_nfl_game_data()
 
 
 def connect():
@@ -98,6 +101,16 @@ def update_player_data():
     with open(filename, 'r') as f:
         player_stats = json.load(f)['players']
 
+    curs.execute('''CREATE TABLE IF NOT EXISTS player (
+                            id integer PRIMARY KEY,
+                            nfl_name text,
+                            nfl_id text,
+                            esbid text,
+                            gsisPlayerId text,
+                            yahoo_name text,
+                            yahoo_id text,
+                            eligible_positions text)''')
+
     for player in player_stats:
         result = curs.execute('SELECT * FROM player WHERE nfl_id = ?', (player['id'],)).fetchall()
         if not result:
@@ -120,7 +133,7 @@ def update_player_data():
             try:
                 yahoo_id = player_yahoo_profile['player_id']
                 yahoo_name = player['nfl_name']
-            except TypeError:
+            except (TypeError, KeyError):
                 scraped_player = api.scrape_player(player['nfl_name'])
 
                 if not scraped_player:
@@ -142,6 +155,8 @@ def update_player_data():
 
         # add eligible positions if missing
         if player['eligible_positions'] is None:
+            if player['yahoo_name'] is None:
+                continue
             player_yahoo_profile = api.player(player['yahoo_name'])
             try:
                 eligible_positions = player_yahoo_profile['eligible_positions']
