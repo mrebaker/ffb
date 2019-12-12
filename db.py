@@ -128,7 +128,7 @@ def update_player_data():
     players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
                               FROM player
                               WHERE yahoo_id IS NULL''').fetchall()
-
+    yahoo_players = api.players()
     for player in players:
         player_yahoo_profile = api.player(player['nfl_name'])
         try:

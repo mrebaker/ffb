@@ -17,6 +17,7 @@ from yahoo_oauth import OAuth2
 with open('_config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
 
+log = logging.getLogger()
 logging.basicConfig(filename='ffb.log', level=logging.DEBUG)
 
 
@@ -67,6 +68,38 @@ def player(p_name=None, p_id=None):
         details = []
         # raise PotentialRateLimitError
     return details
+
+
+def players():
+    lg = league()
+
+    ret = []
+    start_pos = 0
+    while True:
+        player_set = lg.yhandler.get_players_raw(lg.league_id, start_pos*25)
+        if player_set is None or start_pos > 100:
+            break
+        try:
+            for player_dict in player_set['fantasy_content']['league'][1]['players'].items():
+                try:
+                    player_details = player_dict[1]['player'][0]
+                except TypeError:
+                    continue
+                clean_dict = {}
+                for detail in player_details:
+                    try:
+                        for k, v in detail.items():
+                            clean_dict[k] = v
+                    except AttributeError:
+                        pass
+                ret.append(clean_dict)
+        except KeyError:
+            log.error(f'Error with api.players at start position {start_pos}')
+            continue
+
+        start_pos += 1
+
+    return ret
 
 
 def league():

@@ -400,4 +400,8 @@ if __name__ == '__main__':
     # api.refresh_nfl_game_data()
     # db.load_nfl_game_data()
     # db.build_database()
-    api.player(p_id=24171)
+    # api.player(p_id=24171)
+    players = api.players()
+    for player in players:
+        print(player)
+
