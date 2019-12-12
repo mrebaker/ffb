@@ -37,24 +37,35 @@ def authenticate():
     return auth
 
 
-def player(p_name):
+def player(p_name=None, p_id=None):
     """
     Gets the Yahoo fantasy details for a particular name.
     :param p_name: The player's name
+    :param p_id: The player's Yahoo ID
     :return: a dict containing details from the Yahoo fantasy API
     """
-    if "\'" in p_name:
-        return []
-
     lg_obj = league()
     log = logging.getLogger()
 
+    if p_id:
+        log.info(f'Searching {p_id}')
+        player_key = f'nfl.p{p_id}'
+        url = 'http://fantasysports.yahooapis.com/fantasy/v2/player/' + player_key
+        # TODO - authenticate oauth session
+        ret = requests.get(url)
+        print(ret)
+        return
+
+    if "\'" in p_name:
+        return []
+
     try:
-        log.info(p_name)
+        log.info(f'Searching {p_name}')
         details = lg_obj.player_details(p_name)
     except json.decoder.JSONDecodeError:
         log.warning(f'Potential rate limit error for player {p_name}')
-        raise PotentialRateLimitError
+        details = []
+        # raise PotentialRateLimitError
     return details
 
 
