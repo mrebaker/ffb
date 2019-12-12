@@ -76,26 +76,28 @@ def players():
     ret = []
     start_pos = 0
     while True:
-        player_set = lg.yhandler.get_players_raw(lg.league_id, start_pos*25)
-        if player_set is None or start_pos > 100:
+        api_response = lg.yhandler.get_players_raw(lg.league_id, start_pos*25)
+
+        if api_response is None or start_pos > 100:
             break
-        try:
-            for player_dict in player_set['fantasy_content']['league'][1]['players'].items():
+
+        player_set = api_response['fantasy_content']['league'][1]['players']
+        if not player_set:
+            break
+
+        for player_dict in player_set.items():
+            try:
+                player_details = player_dict[1]['player'][0]
+            except TypeError:
+                continue
+            clean_dict = {}
+            for detail in player_details:
                 try:
-                    player_details = player_dict[1]['player'][0]
-                except TypeError:
-                    continue
-                clean_dict = {}
-                for detail in player_details:
-                    try:
-                        for k, v in detail.items():
-                            clean_dict[k] = v
-                    except AttributeError:
-                        pass
-                ret.append(clean_dict)
-        except KeyError:
-            log.error(f'Error with api.players at start position {start_pos}')
-            continue
+                    for k, v in detail.items():
+                        clean_dict[k] = v
+                except AttributeError:
+                    pass
+            ret.append(clean_dict)
 
         start_pos += 1
 
