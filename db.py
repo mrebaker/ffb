@@ -35,7 +35,7 @@ def build_database():
     #     raise RuntimeError('Remove or rename existing database file(s) before proceeding.')
 
     update_player_data()
-    # update_stats_database()
+    update_stats_database()
     # load_nfl_game_data()
 
 

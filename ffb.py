@@ -53,12 +53,12 @@ def calc_week_stats(week=None):
         team_missing_multipliers[team['name']] = missing_multipliers
         team_missing_players[team['name']] = missing_players
 
-    week_matchups = league.matchups(week)
-
+    api_response = league.matchups(week)
+    week_matchups = api_response['fantasy_content']['league'][1]['scoreboard']['0']['matchups']
     print(f"------ Week {week} ------")
     for val in week_matchups.values():
-        team1 = val['0']['team'][0][2]['name']
-        team2 = val['1']['team'][0][2]['name']
+        team1 = val['matchup']['0']['teams']['0']['team'][0][2]['name']
+        team2 = val['matchup']['0']['teams']['1']['team'][0][2]['name']
         team1_score = team_points[team1]
         team2_score = team_points[team2]
         print(f'{team1} {team1_score:.2f} v {team2_score:.2f} {team2}')
@@ -384,22 +384,6 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    # update_player_database()
-    # update_stats_database()
-    # print(ffb_api.league())
+    calc_week_stats(14)
 
-    # for w in range(1, 2):
-    #     calc_week_stats(w)
-
-    # print(position_rankings('QB', 'week', 8))
-    # print(position_rankings('QB', 'season'))
-    # minmax('QB')
-    # print(player_weekly_rankings('30125'))
-    # evaluate_predictions()
-
-    # api.refresh_nfl_game_data()
-    # db.load_nfl_game_data()
-    # db.build_database()
-    # api.player(p_id=24171)
-    db.update_player_data()
 
