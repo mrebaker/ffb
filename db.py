@@ -5,6 +5,7 @@ Functions for interacting with a sqlite database to support the Fantasy Football
 # Standard library imports
 import fnmatch
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -17,6 +18,9 @@ import api
 
 with open('_config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
+
+log = logging.getLogger()
+logging.basicConfig(filename='ffb.log', level=logging.DEBUG)
 
 
 def build_database():
@@ -125,68 +129,51 @@ def update_player_data():
             conn.commit()
 
     # add Yahoo ID if missing
-    players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
-                              FROM player
-                              WHERE yahoo_id IS NULL''').fetchall()
+
     yahoo_players = api.players()
-    for player in players:
-        player_yahoo_profile = api.player(player['nfl_name'])
-        try:
-            yahoo_id = player_yahoo_profile['player_id']
-        except (TypeError, KeyError):
-            scraped_player = api.scrape_player(player['nfl_name'])
+    for player in yahoo_players:
+        yahoo_name = player['name']['full']
+        yahoo_id = player['player_id']
+        eligible_positions = player['eligible_positions'][0]['position']
 
-            if not scraped_player:
-                if '.' in player['nfl_name']:
-                    scraped_player = api.scrape_player(player['nfl_name'].replace('.', ''))
-                    if not scraped_player:
-                        continue
-                else:
-                    continue
+        db_players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
+                                    FROM player
+                                    WHERE nfl_name = ?''', (yahoo_name,)).fetchall()
 
-            yahoo_id = scraped_player['id'].split('.')[-1]
+        if not db_players:
+            log.info(f'No player in database called {yahoo_name}')
+            continue
 
-        values = (yahoo_id, player['id'])
+        if len(db_players) > 1:
+            log.info(f'{len(db_players)} instance(s) found for {yahoo_name}')
+            continue
+
+        db_player = db_players[0]
+        params = (yahoo_id, yahoo_name, eligible_positions, db_player['id'])
         curs.execute('''UPDATE player
-                        SET yahoo_id = ?
-                        WHERE id = ?''', values)
+                        SET yahoo_id = ?, yahoo_name = ?, eligible_positions = ?
+                        WHERE id = ?''', params)
         conn.commit()
 
-    # add Yahoo name if missing
-    players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
-                              FROM player
-                              WHERE yahoo_name IS NULL''').fetchall()
-
-    for player in players:
-        # add eligible positions if missing
-        if player['eligible_positions'] is None:
-            if player['yahoo_name'] is None:
-                continue
-            player_yahoo_profile = api.player(player['yahoo_name'])
-            try:
-                eligible_positions = player_yahoo_profile['eligible_positions']
-                # Yahoo API returns a list of dicts, so extract the dict values
-                position_list = [d['position'] for d in eligible_positions]
-                position_text = ",".join(position_list)
-            except (TypeError, KeyError):
-                scraped_player = api.scrape_player(player['nfl_name'])
-                if not scraped_player:
-                    if '.' in player['nfl_name']:
-                        scraped_player = api.scrape_player(player['nfl_name'].replace('.', ''))
-                        if not scraped_player:
-                            continue
-                    else:
-                        continue
-                try:
-                    position_text = scraped_player['positions']
-                except KeyError:
-                    continue
-
-                values = (position_text, player['id'])
-                curs.execute('''UPDATE player
-                                SET eligible_positions = ?
-                                WHERE id = ?''', values)
-                conn.commit()
+    # # scraping to be added back in later
+    # scraped_player = api.scrape_player(player['nfl_name'])
+    # if not scraped_player:
+    #     if '.' in player['nfl_name']:
+    #         scraped_player = api.scrape_player(player['nfl_name'].replace('.', ''))
+    #         if not scraped_player:
+    #             continue
+    #     else:
+    #         continue
+    # try:
+    #     position_text = scraped_player['positions']
+    # except KeyError:
+    #     continue
+    #
+    # values = (position_text, player['id'])
+    # curs.execute('''UPDATE player
+    #                 SET eligible_positions = ?
+    #                 WHERE id = ?''', values)
+    # conn.commit()
 
 
 def update_stats_database():
