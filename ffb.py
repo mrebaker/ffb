@@ -386,5 +386,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    # db.update_player_data()
-    calc_week_stats(14)
+    db.update_player_data()
+    # calc_week_stats(14)

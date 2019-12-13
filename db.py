@@ -155,40 +155,57 @@ def update_player_data():
     #     conn.commit()
     #
     # try screen scraping info where missing
-    db_players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
-                                        FROM player
-                                        WHERE yahoo_name IS NULL
-                                        or yahoo_id IS NULL
-                                        or eligible_positions IS NULL''').fetchall()
+    # db_players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
+    #                                     FROM player
+    #                                     WHERE yahoo_name IS NULL
+    #                                     or yahoo_id IS NULL
+    #                                     or eligible_positions IS NULL''').fetchall()
+    #
+    # for player in db_players:
+    #     scraped_player = api.scrape_player(player['nfl_name'])
+    #     if not scraped_player:
+    #         if '.' in player['nfl_name']:
+    #             scraped_player = api.scrape_player(player['nfl_name'].replace('.', ''))
+    #             if not scraped_player:
+    #                 continue
+    #         else:
+    #             continue
+    #
+    #     data_points = []
+    #     for data_point in ['full_name', 'id', 'position']:
+    #         try:
+    #             data_points.append(scraped_player[data_point])
+    #         except KeyError:
+    #             data_points.append(None)
+    #             continue
+    #
+    #     if data_points[1]:
+    #         data_points[1] = data_points[1].split('.')[-1]
+    #
+    #     data_points.append(player['id'])
+    #
+    #     values = tuple(data_points)
+    #     curs.execute('''UPDATE player
+    #                     SET (yahoo_name, yahoo_id, eligible_positions)
+    #                      = (?, ?, ?)
+    #                     WHERE id = ?''', values)
+    #     conn.commit()
 
-    for player in db_players:
-        scraped_player = api.scrape_player(player['nfl_name'])
-        if not scraped_player:
-            if '.' in player['nfl_name']:
-                scraped_player = api.scrape_player(player['nfl_name'].replace('.', ''))
-                if not scraped_player:
-                    continue
-            else:
-                continue
+    # fix Yahoo IDs for DST - screen scraping returns xx where it should be 1000xx
+    # these all have NFL IDs between 100001 and 100032 inc.
 
-        data_points = []
-        for data_point in ['full_name', 'id', 'position']:
-            try:
-                data_points.append(scraped_player[data_point])
-            except KeyError:
-                data_points.append(None)
-                continue
+    db_dst = curs.execute('''SELECT * FROM player
+                             WHERE nfl_id BETWEEN 100001 AND 100032''').fetchall()
 
-        if data_points[1]:
-            data_points[1] = data_points[1].split('.')[-1]
-
-        data_points.append(player['id'])
-
-        values = tuple(data_points)
+    for dst in db_dst:
         curs.execute('''UPDATE player
-                        SET (yahoo_name, yahoo_id, eligible_positions) 
-                         = (?, ?, ?)
-                        WHERE id = ?''', values)
+                        SET eligible_positions = "DEF"
+                        WHERE id = ?''', (dst['id'],))
+        if 0 < int(dst['yahoo_id']) < 33:
+            new_id = f'1000{dst["yahoo_id"]}'
+            curs.execute('''UPDATE player
+                            SET yahoo_id = ?
+                            WHERE id = ?''', (dst['id'], new_id))
         conn.commit()
 
 
