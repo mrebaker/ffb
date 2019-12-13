@@ -192,8 +192,7 @@ def update_player_data():
     #     conn.commit()
 
     # fix Yahoo IDs for DST - screen scraping returns xx where it should be 1000xx
-    # these all have NFL IDs between 100001 and 100032 inc.
-
+    # these all have Yahoo IDs between 1 and 35
     db_dst = curs.execute('''SELECT * FROM player
                              WHERE nfl_id BETWEEN 100001 AND 100032''').fetchall()
 
@@ -201,11 +200,13 @@ def update_player_data():
         curs.execute('''UPDATE player
                         SET eligible_positions = "DEF"
                         WHERE id = ?''', (dst['id'],))
-        if 0 < int(dst['yahoo_id']) < 33:
-            new_id = f'1000{dst["yahoo_id"]}'
+
+        yahoo_id = int(dst['yahoo_id'])
+        if 0 < yahoo_id < 35:
+            new_id = f'1000{yahoo_id:02}'
             curs.execute('''UPDATE player
                             SET yahoo_id = ?
-                            WHERE id = ?''', (dst['id'], new_id))
+                            WHERE id = ?''', (new_id, dst['id']))
         conn.commit()
 
 
