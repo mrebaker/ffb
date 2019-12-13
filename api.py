@@ -153,17 +153,12 @@ def scrape_player(p_name):
         json_str = hit['data'].replace('\\', '"')
         hit['data'] = json.loads(json_str)
 
-    if len(hits) > 1:
-        filtered_hits = []
-        for hit in hits:
-            if hit['data']['league'] == 'NFL':
-                filtered_hits.append(hit)
-        print(f'WARNING: {len(hits)} players found via screen scrape for {p_name}.',
-              f'After filtering by league, {len(filtered_hits)} player(s) remain.')
+    filtered_hits = []
+    for hit in hits:
+        if hit['data']['league'] == 'NFL':
+            filtered_hits.append(hit)
 
-        if filtered_hits:
-            hits = filtered_hits
-        else:
-            return {}
+    if not filtered_hits:
+        return {}
 
-    return hits[0]['data']
+    return filtered_hits[0]['data']

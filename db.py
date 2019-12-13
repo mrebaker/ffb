@@ -154,12 +154,12 @@ def update_player_data():
     #                     WHERE id = ?''', params)
     #     conn.commit()
     #
-    # # try screen scraping info where missing
-    # db_players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
-    #                                     FROM player
-    #                                     WHERE yahoo_name IS NULL
-    #                                     or yahoo_id IS NULL
-    #                                     or eligible_positions IS NULL''').fetchall()
+    # try screen scraping info where missing
+    db_players = curs.execute('''SELECT id, nfl_name, yahoo_name, yahoo_id, eligible_positions
+                                        FROM player
+                                        WHERE yahoo_name IS NULL
+                                        or yahoo_id IS NULL
+                                        or eligible_positions IS NULL''').fetchall()
 
     for player in db_players:
         scraped_player = api.scrape_player(player['nfl_name'])
@@ -172,7 +172,7 @@ def update_player_data():
                 continue
 
         data_points = []
-        for data_point in ['name', 'id', 'positions']:
+        for data_point in ['display_name', 'id', 'position']:
             try:
                 data_points.append(scraped_player[data_point])
             except KeyError:
