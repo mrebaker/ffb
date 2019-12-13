@@ -57,6 +57,8 @@ def calc_week_stats(week=None):
     week_matchups = api_response['fantasy_content']['league'][1]['scoreboard']['0']['matchups']
     print(f"------ Week {week} ------")
     for val in week_matchups.values():
+        if isinstance(val, int):
+            continue
         team1 = val['matchup']['0']['teams']['0']['team'][0][2]['name']
         team2 = val['matchup']['0']['teams']['1']['team'][0][2]['name']
         team1_score = team_points[team1]
@@ -384,6 +386,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    calc_week_stats(14)
-
-
+    db.update_player_data()
