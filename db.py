@@ -172,16 +172,22 @@ def update_player_data():
                 continue
 
         data_points = []
-        for data_point in ['display_name', 'id', 'position']:
+        for data_point in ['full_name', 'id', 'position']:
             try:
                 data_points.append(scraped_player[data_point])
             except KeyError:
                 data_points.append(None)
                 continue
 
+        if data_points[1]:
+            data_points[1] = data_points[1].split('.')[-1]
+
+        data_points.append(player['id'])
+
         values = tuple(data_points)
         curs.execute('''UPDATE player
-                        SET eligible_positions = ?
+                        SET (yahoo_name, yahoo_id, eligible_positions) 
+                         = (?, ?, ?)
                         WHERE id = ?''', values)
         conn.commit()
 
