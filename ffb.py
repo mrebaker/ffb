@@ -208,8 +208,10 @@ def player_points_history(yahoo_id):
     rows = curs.execute('''SELECT p.season, p.week, p.points FROM player_weekly_points as p
                            LEFT JOIN player on p.player_nfl_id = player.nfl_id
                            WHERE player.yahoo_id = ?''', (yahoo_id, )).fetchall()
+
     df = pd.DataFrame(rows)
-    df.plot()
+    df['game'] = df['season'].map(str) + df['week'].map(str)
+    plt.bar(x=df['game'], height=df['points'])
     plt.show()
 
 
