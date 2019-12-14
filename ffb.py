@@ -203,6 +203,14 @@ def points_from_scores(score_dict):
     return points, missing_multipliers
 
 
+def player_points_history(yahoo_id):
+    _, curs = db.connect()
+    rows = curs.execute('''SELECT * FROM player_weekly_points
+                           LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
+                           WHERE player.yahoo_id = ?''', (yahoo_id, ))
+    print(rows)
+
+
 def player_weekly_rankings(*yahoo_ids, plot=True):
     """
     Gets the weekly ranking for a given player within their position group.
@@ -386,4 +394,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    db.calc_player_weekly_points()
+    player_points_history(2558063)
