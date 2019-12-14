@@ -71,13 +71,14 @@ def load_nfl_game_data():
     database.
     """
     conn, curs = connect()
-    curs.execute('''CREATE TABLE IF NOT EXISTS weekstat
-                    id INTEGER AUTOINCREMENT PRIMARY KEY,
+    curs.execute('''CREATE TABLE IF NOT EXISTS weekstat (
+                    id INTEGER PRIMARY KEY,
                     player_nfl_id TEXT,
                     season INTEGER,
                     week INTEGER,
                     stat_nfl_id TEXT,
-                    stat_vol REAL''')
+                    stat_vol REAL)''')
+    conn.commit()
 
     # TODO - should check for duplicates first!
     folder = 'data_in'
