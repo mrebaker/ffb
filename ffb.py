@@ -210,8 +210,22 @@ def player_points_history(yahoo_id):
                            WHERE player.yahoo_id = ?''', (yahoo_id, )).fetchall()
 
     df = pd.DataFrame(rows)
+
+    season_start = df['season'].min()
+    season_end = df['season'].max()
+    for season in range(season_start, season_end+1):
+        for week in range(1, 18):
+            # 17 weeks in a regular season
+            df_game = df[(df['season'] == season) & (df['week'] == week)]
+            if df_game.empty:
+                df_temp = pd.DataFrame([[season, week, 0]], columns=df.columns)
+                df = df.append(df_temp)
+    df = df.sort_values(['season', 'week'])
     df['game'] = df['season'].map(str) + df['week'].map(str)
+
     plt.bar(x=df['game'], height=df['points'])
+    locs, _ = plt.xticks()
+    plt.xticks(locs, labels=df['week'])
     plt.show()
 
 
