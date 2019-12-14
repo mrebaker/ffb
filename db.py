@@ -102,7 +102,7 @@ def load_nfl_game_data():
                                     (player_nfl_id, season, week, stat_nfl_id, stat_vol)
                                     VALUES
                                     (?, ?, ?, ?, ?)''', params)
-                conn.commit()
+            conn.commit()
 
 
 def update_player_data():
