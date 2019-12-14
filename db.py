@@ -259,3 +259,15 @@ def update_stats_data():
                                 );""", vals)
         conn.commit()
 
+
+def calc_player_weekly_points():
+    conn, curs = connect()
+    curs.execute('''DROP TABLE IF EXISTS player_weekly_points''')
+    curs.execute('''CREATE TABLE player_weekly_points AS
+                    SELECT weekstat.player_nfl_id, weekstat.season, weekstat.week, 
+                    sum(weekstat.stat_vol*statline.points) as points
+                    FROM weekstat LEFT JOIN statline on weekstat.stat_nfl_id=statline.nfl_id
+                    WHERE statline.points IS NOT NULL
+                    GROUP BY weekstat.player_nfl_id, weekstat.season, weekstat.week
+                    ''')
+    conn.commit()
