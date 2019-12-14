@@ -205,10 +205,12 @@ def points_from_scores(score_dict):
 
 def player_points_history(yahoo_id):
     _, curs = db.connect()
-    rows = curs.execute('''SELECT * FROM player_weekly_points
-                           LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
-                           WHERE player.yahoo_id = ?''', (yahoo_id, ))
-    print(rows)
+    rows = curs.execute('''SELECT p.season, p.week, p.points FROM player_weekly_points as p
+                           LEFT JOIN player on p.player_nfl_id = player.nfl_id
+                           WHERE player.yahoo_id = ?''', (yahoo_id, )).fetchall()
+    df = pd.DataFrame(rows)
+    df.plot()
+    plt.show()
 
 
 def player_weekly_rankings(*yahoo_ids, plot=True):
@@ -394,4 +396,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    player_points_history(2558063)
+    player_points_history(30125)
