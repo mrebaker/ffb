@@ -11,13 +11,12 @@ A lot of work left to do, but aims are to:
 # standard library imports
 import json
 import os
-import sqlite3
 import urllib.parse
-from datetime import datetime as dt
 
 # third party imports
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import requests
 import yaml
 from matplotlib import pyplot as plt
@@ -72,6 +71,22 @@ def calc_week_stats(week=None):
     for team, multipliers in team_missing_multipliers.items():
         if multipliers:
             print(f'{team} missing multipiers:', multipliers)
+
+
+def correlate_years():
+    _, curs = db.connect()
+    result = curs.execute('''SELECT player.nfl_name as player_name, season, sum(points)
+                             FROM player_weekly_points 
+                             LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
+                             WHERE player.eligible_positions = 'WR'
+                             GROUP BY player.nfl_name, season''').fetchall()
+
+    df = pd.DataFrame(result)
+    df = df.pivot(index='player_name', columns='season', values='sum(points)')
+    df = df.reset_index()
+
+    fig = px.scatter(df, x=2018, y=2019, text='player_name')
+    fig.show()
 
 
 def evaluate_predictions():
@@ -412,4 +427,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    player_points_history(30125)
+    correlate_years()
