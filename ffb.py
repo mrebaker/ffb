@@ -427,4 +427,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    correlate_years()
+    api.refresh_nfl_game_data()

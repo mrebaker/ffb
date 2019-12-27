@@ -65,6 +65,14 @@ def dict_factory(cursor, row):
     return d
 
 
+def latest_game_data():
+    _, curs = connect()
+    row = curs.execute('''SELECT season, week FROM weekstat
+                          ORDER BY season desc, week desc
+                          LIMIT 1''').fetchone()
+    print(row)
+
+
 def load_nfl_game_data():
     """
     Runs through every stat file in the data folder and uploads the weekly player/game data to the
