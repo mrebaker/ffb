@@ -88,7 +88,6 @@ def load_nfl_game_data():
                     stat_vol REAL)''')
     conn.commit()
 
-    # TODO - should check for duplicates first!
     folder = 'data_in'
     files = []
     for (_, _, file_names) in os.walk(folder):
@@ -99,6 +98,12 @@ def load_nfl_game_data():
     for stat_file in tqdm(stat_files):
         season = re.split('[-.]', stat_file)[2]
         week = re.split('[-.]', stat_file)[3]
+        row = curs.execute('''SELECT * FROM weekstat
+                              WHERE season = ? and week = ?
+                              LIMIT 1''', (season, week)).fetchone()
+        if row:
+            continue
+
         with open(os.path.join(folder, stat_file), 'r') as f:
             stats = json.loads(f.read())
             players = stats['games']['102019']['players']
