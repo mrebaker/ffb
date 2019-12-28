@@ -73,6 +73,19 @@ def calc_week_stats(week=None):
             print(f'{team} missing multipiers:', multipliers)
 
 
+def consistency_chart():
+    _, curs = db.connect()
+    result = curs.execute('''SELECT player.nfl_name as player_name, season, sum(points)
+                             FROM player_weekly_points 
+                             LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
+                             WHERE player.eligible_positions = 'QB'
+                             GROUP BY player.nfl_name, season''').fetchall()
+
+    df = pd.DataFrame(result)
+    fig = px.line(df, x='season', y='sum(points)', line_group='player_name', color='player_name')
+    fig.show()
+
+
 def correlate_years():
     _, curs = db.connect()
     result = curs.execute('''SELECT player.nfl_name as player_name, season, sum(points)
@@ -427,4 +440,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    db.load_nfl_game_data()
+    consistency_chart()
