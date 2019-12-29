@@ -73,16 +73,37 @@ def calc_week_stats(week=None):
             print(f'{team} missing multipiers:', multipliers)
 
 
-def consistency_chart():
+def consistency_chart(frequency):
     _, curs = db.connect()
-    result = curs.execute('''SELECT player.nfl_name as player_name, season, sum(points)
-                             FROM player_weekly_points 
-                             LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
-                             WHERE player.eligible_positions = 'QB'
-                             GROUP BY player.nfl_name, season''').fetchall()
+    if frequency == 'season':
+        result = curs.execute('''SELECT player.nfl_name as player_name, season, sum(points) as points
+                                 FROM player_weekly_points 
+                                 LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
+                                 WHERE player.eligible_positions = 'QB'
+                                 GROUP BY player.nfl_name, season''').fetchall()
+        x_data = 'season'
+        x_axis_ticks = dict(tickmode='array',
+                            tickvals=[2015, 2016, 2017, 2018, 2019],
+                            ticktext=['2015', '2016', '2017', '2018', '2019'])
+
+    elif frequency == 'week':
+        result = curs.execute('''SELECT player.nfl_name as player_name, season, week, 
+                                 (season || "-" || week) as game, points
+                                 FROM player_weekly_points 
+                                 LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
+                                 WHERE player.eligible_positions = "QB"''').fetchall()
+        x_data = 'game'
+    else:
+        raise ValueError('Frequency must be "season" or "week".')
 
     df = pd.DataFrame(result)
-    fig = px.line(df, x='season', y='sum(points)', line_group='player_name', color='player_name')
+    fig = px.line(df, x=x_data, y='points', line_group='player_name', color='player_name')
+
+    if frequency == 'season':
+        fig.update_layout(xaxis=x_axis_ticks)
+    else:
+        fig.update_layout(xaxis_tickformat='%m<br>%Y')
+
     fig.show()
 
 
@@ -440,4 +461,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    consistency_chart()
+    consistency_chart('week')
+    consistency_chart('season')
