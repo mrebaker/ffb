@@ -31,6 +31,25 @@ with open('_config.yml', 'r') as config_file:
     CONFIG = yaml.safe_load(config_file)
 
 
+def box_plot(position, top_n):
+    _, curs = db.connect()
+    rows = curs.execute('''SELECT player.nfl_name as player_name, season, week, points, t.scoring_rank
+                           FROM (player_weekly_points LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id)
+                           LEFT JOIN (SELECT player_nfl_id, RANK () OVER ( ORDER BY SUM(points) Desc ) scoring_rank
+                                      FROM player_weekly_points 
+                                      LEFT JOIN player on player_weekly_points.player_nfl_id=player.nfl_id
+                                      WHERE season = 2019 and player.eligible_positions = ?
+                                      GROUP BY player_nfl_id) as t 
+                                      on t.player_nfl_id = player_weekly_points.player_nfl_id
+                           WHERE player.eligible_positions = ? AND season = 2019
+                           GROUP BY player.nfl_name, season, week, points
+                           HAVING scoring_rank < ?
+                           ORDER BY scoring_rank''', (position, position, top_n+1)).fetchall()
+    df = pd.DataFrame(rows)
+    fig = px.box(df, x='player_name', y='points')
+    fig.show()
+
+
 def calc_week_stats(week=None):
     """
     Outputs the scores for each matchup in the given week, or the current week if not provided.
@@ -82,8 +101,7 @@ def consistency_chart(frequency):
                                  WHERE player.eligible_positions = 'QB'
                                  GROUP BY player.nfl_name, season''').fetchall()
         x_data = 'season'
-        x_axis_ticks = dict(tickmode='array',
-                            tickvals=[2015, 2016, 2017, 2018, 2019],
+        x_axis_ticks = dict(tickmode='array', tickvals=[2015, 2016, 2017, 2018, 2019],
                             ticktext=['2015', '2016', '2017', '2018', '2019'])
 
     elif frequency == 'week':
@@ -174,10 +192,7 @@ def find_players_by_score_type(nfl_score_id, period):
     filtered = [i for i in week_stats['players'] if nfl_score_id in i['stats'].keys()]
 
     for player in filtered:
-        attr_to_show = [player['name'],
-                        player['teamAbbr'],
-                        player['position'],
-                        player['stats'][nfl_score_id]]
+        attr_to_show = [player['name'], player['teamAbbr'], player['position'], player['stats'][nfl_score_id]]
 
         print('\t'.join(attr_to_show))
 
@@ -189,7 +204,7 @@ def minmax(position):
     :return: Nothing
     """
     unused_conn, curs = db.connect()
-    players = curs.execute('SELECT * FROM player WHERE eligible_positions = ?', (position, ))
+    players = curs.execute('SELECT * FROM player WHERE eligible_positions = ?', (position,))
     week_limit = api.league().current_week()
     fig = plt.figure()
     ax = plt.subplot(111, projection='3d')
@@ -256,13 +271,13 @@ def player_points_history(yahoo_id):
     _, curs = db.connect()
     rows = curs.execute('''SELECT p.season, p.week, p.points FROM player_weekly_points as p
                            LEFT JOIN player on p.player_nfl_id = player.nfl_id
-                           WHERE player.yahoo_id = ?''', (yahoo_id, )).fetchall()
+                           WHERE player.yahoo_id = ?''', (yahoo_id,)).fetchall()
 
     df = pd.DataFrame(rows)
 
     season_start = df['season'].min()
     season_end = df['season'].max()
-    for season in range(season_start, season_end+1):
+    for season in range(season_start, season_end + 1):
         for week in range(1, 18):
             # 17 weeks in a regular season
             df_game = df[(df['season'] == season) & (df['week'] == week)]
@@ -289,7 +304,7 @@ def player_weekly_rankings(*yahoo_ids, plot=True):
     league = api.league()
     unused_conn, curs = db.connect()
 
-    query = f'SELECT * FROM player WHERE yahoo_id IN ({",".join("?"*len(yahoo_ids))})'
+    query = f'SELECT * FROM player WHERE yahoo_id IN ({",".join("?" * len(yahoo_ids))})'
     players = curs.execute(query, yahoo_ids).fetchall()
 
     if not players:
@@ -363,7 +378,7 @@ def position_rankings(position, stat_type, period=None):
     df = df.fillna(0)
     df = df.sort_values(by=['pts'], axis=0, ascending=False)
     df = df.reset_index(drop=True)
-    df.index = range(1, len(df)+1)
+    df.index = range(1, len(df) + 1)
     df.to_csv(f'position_rankings_{period:02}_{position}.csv')
     return df
 
@@ -433,8 +448,7 @@ def team_weekly_score(team, week, league):
 
         qry_result = curs.execute('''SELECT nfl_id
                                      FROM player 
-                                     WHERE yahoo_id = ?''',
-                                  (player['player_id'],)).fetchone()
+                                     WHERE yahoo_id = ?''', (player['player_id'],)).fetchone()
 
         if qry_result:
             nfl_id = qry_result['nfl_id']
@@ -461,5 +475,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    consistency_chart('week')
-    consistency_chart('season')
+    box_plot('QB', 30)
