@@ -10,7 +10,6 @@ A lot of work left to do, but aims are to:
 
 # standard library imports
 import json
-import os
 from pathlib import Path
 import urllib.parse
 
@@ -34,18 +33,20 @@ with open('_config.yml', 'r') as config_file:
 
 def box_plot(position, top_n):
     _, curs = db.connect()
-    rows = curs.execute('''SELECT player.nfl_name as player_name, season, week, points, t.scoring_rank
-                           FROM (player_weekly_points LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id)
-                           LEFT JOIN (SELECT player_nfl_id, RANK () OVER ( ORDER BY SUM(points) Desc ) scoring_rank
-                                      FROM player_weekly_points 
-                                      LEFT JOIN player on player_weekly_points.player_nfl_id=player.nfl_id
-                                      WHERE season = 2019 and player.eligible_positions = ?
-                                      GROUP BY player_nfl_id) as t 
-                                      on t.player_nfl_id = player_weekly_points.player_nfl_id
-                           WHERE player.eligible_positions = ? AND season = 2019
-                           GROUP BY player.nfl_name, season, week, points
-                           HAVING scoring_rank <= ?
-                           ORDER BY scoring_rank''', (position, position, top_n)).fetchall()
+    rows = curs.execute(
+        '''SELECT player.nfl_name as player_name, season, week, points, t.scoring_rank
+           FROM (player_weekly_points LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id)
+           LEFT JOIN (SELECT player_nfl_id, RANK () OVER ( ORDER BY SUM(points) Desc ) scoring_rank
+                      FROM player_weekly_points 
+                      LEFT JOIN player on player_weekly_points.player_nfl_id=player.nfl_id
+                      WHERE season = 2019 and player.eligible_positions = ?
+                      GROUP BY player_nfl_id) as t 
+                      on t.player_nfl_id = player_weekly_points.player_nfl_id
+           WHERE player.eligible_positions = ? AND season = 2019
+           GROUP BY player.nfl_name, season, week, points
+           HAVING scoring_rank <= ?
+           ORDER BY scoring_rank''', (position, position, top_n)
+        ).fetchall()
     df = pd.DataFrame(rows)
     fig = px.box(df, x='player_name', y='points')
     fig.show()
@@ -476,4 +477,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    print(find_players_by_score_type(1, 'week'))
+    minmax('QB')

@@ -29,7 +29,7 @@ def download_stat_file(stat_type, week):
     resp = requests.get(url)
 
     if resp.status_code == 200:
-        filename = f'data/nfl-{stat_type}stats-2019-{week:02}.json'
+        filename = f'data_in/nfl-{stat_type}stats-2019-{week:02}.json'
         with open(filename, 'w+') as f:
             f.write(resp.text)
     else:
@@ -48,7 +48,7 @@ def load_stat_file(stat_type, week=None):
     if week is None:
         week = api.league().current_week() - 1
 
-    score_file = os.path.normpath(f'data/nfl-{stat_type}stats-2019-{week:02}.json')
+    score_file = os.path.normpath(f'data_in/nfl-{stat_type}stats-2019-{week:02}.json')
 
     try:
         with open(score_file, 'r') as f:
