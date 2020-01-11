@@ -20,7 +20,7 @@ import plotly.express as px
 import requests
 import yaml
 from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+from mpl_toolkits.mplot3d import Axes3D
 
 # local imports
 import api
@@ -43,8 +43,8 @@ def box_plot(position, top_n):
                                       on t.player_nfl_id = player_weekly_points.player_nfl_id
                            WHERE player.eligible_positions = ? AND season = 2019
                            GROUP BY player.nfl_name, season, week, points
-                           HAVING scoring_rank < ?
-                           ORDER BY scoring_rank''', (position, position, top_n+1)).fetchall()
+                           HAVING scoring_rank <= ?
+                           ORDER BY scoring_rank''', (position, position, top_n)).fetchall()
     df = pd.DataFrame(rows)
     fig = px.box(df, x='player_name', y='points')
     fig.show()
