@@ -11,6 +11,7 @@ A lot of work left to do, but aims are to:
 # standard library imports
 import json
 import os
+from pathlib import Path
 import urllib.parse
 
 # third party imports
@@ -182,9 +183,9 @@ def find_players_by_score_type(nfl_score_id, period):
     :return:
     """
     if period == 'season':
-        score_file = os.path.normpath('data_in/nfl-seasonstats-2019-10.json')
+        score_file = Path('data_in/nfl-seasonstats-2019-10.json')
     else:
-        score_file = os.path.normpath('data_in/nfl-weekstats-2019-10.json')
+        score_file = Path('data_in/nfl-weekstats-2019-10.json')
 
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
@@ -432,7 +433,7 @@ def team_weekly_score(team, week, league):
     :return: dict of scores accrued, and a dict of players not in database or stat file
     """
     unused_conn, curs = db.connect()
-    score_file = os.path.normpath(f'data_in/nfl-weekstats-2019-{week}.json')
+    score_file = Path(f'data_in/nfl-weekstats-2019-{week}.json')
     with open(score_file, 'r') as f:
         week_stats = json.load(f)
 
@@ -475,4 +476,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    box_plot('QB', 30)
+    print(find_players_by_score_type(1, 'week'))
