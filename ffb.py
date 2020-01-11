@@ -231,7 +231,7 @@ def minmax(position):
         worst_rank = np.nanmax(rank_list)
         median_rank = np.nanmedian(rank_list)
         ax.scatter(best_rank, worst_rank, median_rank)
-        ax.text(best_rank, worst_rank, median_rank, player['short_name'])
+        ax.text(best_rank, worst_rank, median_rank, player['nfl_name'])
         ax.set_xlabel('best rank')
         ax.set_ylabel('worst rank')
         ax.set_zlabel('median rank')
