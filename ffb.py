@@ -207,43 +207,17 @@ def minmax(position):
     """
     unused_conn, curs = db.connect()
     players = curs.execute('SELECT * FROM player WHERE eligible_positions = ?', (position,))
-    week_limit = api.league().current_week()
-    fig = plt.figure()
-    ax = plt.subplot(111, projection='3d')
-
-    week_ranks = [position_rankings(position, 'week', week) for week in range(1, week_limit)]
-
-    # player_ranks = {}
-    # for player in players:
-    #     rank_list = []
-    #     for week in range(1, week_limit):
-    #         df = week_ranks[week]
-    #         row = df[df['yahoo_id'] == player['yahoo_id']]
-    #         if row.iloc[0]['DNS'] == 1:
-    #             rank = np.nan
-    #         else:
-    #             rank = row.index.values.astype(int)[0]
-    #         rank_list.append(rank)
-    #     best_rank = np.nanmin(rank_list)
-    #     worst_rank = np.nanmax(rank_list)
-    #     median_rank = np.nanmedian(rank_list)
-    #     ax.scatter(best_rank, worst_rank, median_rank)
-    #     ax.text(best_rank, worst_rank, median_rank, player['nfl_name'])
-    #     ax.set_xlabel('best rank')
-    #     ax.set_ylabel('worst rank')
-    #     ax.set_zlabel('median rank')
-    # plt.show()
 
     df_players = pd.DataFrame(players)
-    df_ranks = pd.concat(week_ranks)
+    df_ranks = pd.concat([position_rankings(position, 'week', week) for week in range(1, api.league().current_week())])
     df = df_players.merge(right=df_ranks, how='inner', on='nfl_id')
     df = df[['week', 'rank', 'nfl_name']]
     df = df.sort_values(['week', 'rank'])
-    df = df.pivot(index='nfl_name', columns='week', values='rank')
+    df = df.pivot(index='nfl_name', columns='week', values='rank').reset_index()
     df['worst'] = df.max(axis=1)
     df['best'] = df.min(axis=1)
     df['median'] = df.median(axis=1)
-    df = df.reset_index()
+
     fig2 = px.scatter_3d(df, x='best', y='worst', z='median', text='nfl_name')
     fig2.show()
 
