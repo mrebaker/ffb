@@ -6,6 +6,7 @@ Functions for interacting with a sqlite database to support the Fantasy Football
 import fnmatch
 import json
 import logging
+from pathlib import Path
 import os
 import re
 import sqlite3
@@ -28,15 +29,13 @@ def build_database():
     """
     Reconstructs the player, stat and game database from scratch.
     """
-    # db_folder = os.path.normpath('F:/Databases/nfl')
-    # db_filename = 'players.db'
-    #
-    # if os.path.isfile(os.path.join(db_folder, db_filename)) or \
-    #         os.path.isfile(os.path.join(db_folder, db_filename + '-journal')):
-    #     raise RuntimeError('Remove or rename existing database file(s) before proceeding.')
-    #
-    # update_player_data()
-    # update_stats_data()
+    db_path = Path('F:/Databases/nfl/players.db')
+    journal_path = db_path/'-journal'
+    if db_path.exists() or journal_path.exists():
+        raise RuntimeError('Remove or rename existing database file(s) before proceeding.')
+
+    update_player_data()
+    update_stats_data()
     load_nfl_game_data()
 
 

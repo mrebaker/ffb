@@ -467,5 +467,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    print(scrape_player('John Brown'))
+    db.build_database()
     # minmax('QB')
