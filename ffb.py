@@ -209,8 +209,9 @@ def minmax(position):
     players = curs.execute('SELECT * FROM player WHERE eligible_positions = ?', (position,))
 
     df_players = pd.DataFrame(players)
-    df_ranks = pd.concat([position_rankings(position, 'week', week) for week in range(1, api.league().current_week())])
+    df_ranks = pd.concat([position_rankings(position, 'week', week) for week in range(1, 18)])
     df = df_players.merge(right=df_ranks, how='inner', on='nfl_id')
+    df.to_csv('output.csv')
     df = df[['week', 'rank', 'nfl_name']]
     df = df.sort_values(['week', 'rank'])
     df = df.pivot(index='nfl_name', columns='week', values='rank').reset_index()
@@ -361,6 +362,8 @@ def position_rankings(position, stat_type, period=None):
 
     df = pd.DataFrame(players)
     df = df.fillna(0)
+    # don't include players who didn't start
+    df = df[df['DNS'] == 0]
     df = df.sort_values(by=['pts'], axis=0, ascending=False)
     # create ranking as the index
     df = df.reset_index(drop=True)
@@ -467,5 +470,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    db.build_database()
-    # minmax('QB')
+    minmax('QB')
