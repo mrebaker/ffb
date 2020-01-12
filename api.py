@@ -6,7 +6,7 @@ Functions for interacting with Yahoo and NFL fantasy football APIs.
 import json
 import logging
 import urllib.parse
-import os
+from pathlib import Path
 import requests
 
 # Third-party imports
@@ -114,18 +114,15 @@ def league():
     return lg_obj
 
 
-def refresh_nfl_game_data():
-    target_folder = 'data_in'
-
+def download_game_data():
     for year in range(2015, 2020):
-        for week in range(1, 17):
-            filename = f'nfl-weekstats-{year}-{week:02}.json'
-            filepath = os.path.sep.join([target_folder, filename])
-            if not os.path.isfile(filepath):
+        for week in range(1, 18):
+            file_path = Path(f'data_in/nfl-weekstats-{year}-{week:02}.json')
+            if not file_path.exists():
                 url = f'https://api.fantasy.nfl.com/v2/players/weekstats?season={year}&week={week:02}'
                 response = requests.get(url)
                 if response.status_code == 200:
-                    with open(filepath, 'w+') as f:
+                    with open(file_path, 'w+') as f:
                         f.write(response.text)
 
 
