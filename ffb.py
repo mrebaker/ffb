@@ -467,5 +467,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    api.download_game_data()
+    print(scrape_player('John Brown'))
     # minmax('QB')

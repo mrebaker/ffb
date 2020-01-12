@@ -150,10 +150,7 @@ def scrape_player(p_name):
         json_str = hit['data'].replace('\\', '"')
         hit['data'] = json.loads(json_str)
 
-    filtered_hits = []
-    for hit in hits:
-        if hit['data']['league'] == 'NFL':
-            filtered_hits.append(hit)
+    filtered_hits = [hit for hit in hits if hit['data']['league'] == 'NFL']
 
     if not filtered_hits:
         return {}
