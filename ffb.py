@@ -210,16 +210,19 @@ def minmax(position):
 
     df_players = pd.DataFrame(players)
     df_ranks = pd.concat([position_rankings(position, 'week', week) for week in range(1, 18)])
+
     df = df_players.merge(right=df_ranks, how='inner', on='nfl_id')
     df.to_csv('output.csv')
     df = df[['week', 'rank', 'nfl_name']]
     df = df.sort_values(['week', 'rank'])
     df = df.pivot(index='nfl_name', columns='week', values='rank').reset_index()
-    df['worst'] = df.max(axis=1)
-    df['best'] = df.min(axis=1)
-    df['median'] = df.median(axis=1)
+    weeks = [i for i in range(1, 18)]
+    df['games_played'] = df[weeks].count(axis=1)
+    df['worst'] = df[weeks].max(axis=1)
+    df['best'] = df[weeks].min(axis=1)
+    df['median'] = df[weeks].median(axis=1)
 
-    fig2 = px.scatter_3d(df, x='best', y='worst', z='median', text='nfl_name')
+    fig2 = px.scatter_3d(df, x='best', y='worst', z='median', text='nfl_name', color='games_played')
     fig2.show()
 
 
@@ -470,4 +473,6 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
+    api.download_game_data()
     minmax('QB')
+
