@@ -36,19 +36,20 @@ def download_stat_file(stat_type, week):
         raise requests.HTTPError
 
 
-def load_stat_file(stat_type, week=None):
+def load_stat_file(stat_type, season, week):
     """
     Loads a requested stat file, or downloads it if not yet saved. Raises an exception if the
     requested period has not yet started.
     :param stat_type: str 'week' or 'season'
-    :param week: the week requested, or None for the last completed
+    :param season: year of Fantasy Football
+    :param week: the week requested
     :return: a dict representing the file contents
     """
 
     if week is None:
         week = api.league().current_week() - 1
 
-    score_file = os.path.normpath(f'data_in/nfl-{stat_type}stats-2019-{week:02}.json')
+    score_file = os.path.normpath(f'data_in/nfl-{stat_type}stats-{season}-{week:02}.json')
 
     try:
         with open(score_file, 'r') as f:

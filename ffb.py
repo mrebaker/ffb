@@ -209,7 +209,7 @@ def minmax(position):
     players = curs.execute('SELECT * FROM player WHERE eligible_positions = ?', (position,))
 
     df_players = pd.DataFrame(players)
-    df_ranks = pd.concat([position_rankings(position, 'week', week) for week in range(1, 18)])
+    df_ranks = pd.concat([position_rankings(position, 2019, week, False) for week in range(1, 18)])
 
     df = df_players.merge(right=df_ranks, how='inner', on='nfl_id')
     df.to_csv('output.csv')
@@ -333,25 +333,25 @@ def player_weekly_rankings(*yahoo_ids, plot=True):
     return rankings
 
 
-def position_rankings(position, stat_type, period=None):
+def position_rankings(position, season, week, season_stats: bool):
     """
     Ranks all the players within a specified position for a specified week.
     :param position: 2-letter code representing a position e.g. QB
-    :param stat_type: str 'season ' or 'week'
-    :param period: int representing a week of the fantasy football season e.g. 9 or none for
-                   current week
+    :param season: int representing a season (i.e. year)
+    :param week: int representing a week of the fantasy football season e.g. 9.
+    :param season_stats: bool, True if you want full season ranking, False for a week
     :return: a sorted dataframe of all players in that position for that week
     """
     unused_conn, curs = db.connect()
     players = curs.execute("""SELECT nfl_id, yahoo_id, yahoo_name FROM player
                               WHERE eligible_positions LIKE ?""", (f'%{position}%',)).fetchall()
 
-    stats = util.load_stat_file(stat_type, period)
-    period = period or api.league().current_week()
+    stat_type = 'season' if season_stats else 'week'
+    stats = util.load_stat_file(stat_type, season, week)
 
     for player in players:
         try:
-            stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{period:02}']
+            stat_lines = stats[player['nfl_id']]['stats']['week']['2019'][f'{week:02}']
         except KeyError:
             player['DNS'] = 1
             continue
@@ -367,6 +367,7 @@ def position_rankings(position, stat_type, period=None):
     df = df.fillna(0)
     # don't include players who didn't start
     df = df[df['DNS'] == 0]
+    df = df[['nfl_id', 'yahoo_id', 'yahoo_name', 'pts']]
     df = df.sort_values(by=['pts'], axis=0, ascending=False)
     # create ranking as the index
     df = df.reset_index(drop=True)
@@ -375,9 +376,9 @@ def position_rankings(position, stat_type, period=None):
     # reset to preserve the ranking in a column
     df = df.reset_index(drop=False).rename(columns={'index': 'rank'})
 
-    df['season'] = 2019
-    df['week'] = period
-    df.to_csv(f'position_rankings_{period:02}_{position}.csv')
+    df['season'] = season
+    df['week'] = week
+
     return df
 
 
@@ -473,6 +474,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    api.download_game_data()
     minmax('QB')
 
