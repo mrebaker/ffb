@@ -382,6 +382,33 @@ def position_rankings(position, season, week, season_stats: bool):
     return df
 
 
+def risk_reward(position, season):
+    """
+    Charts players within a position group by their whole-season rank vs variance in rank.
+    :param position: string representing a position group e.g. 'QB'
+    :param season: integer season e.g. 2019
+    :return: Nothing
+    """
+    _, curs = db.connect()
+    player_points = curs.execute('''SELECT player.nfl_id, player.yahoo_id, player.yahoo_name,
+                                    player_weekly_points.points
+                                    FROM player LEFT JOIN player_weekly_points 
+                                    ON player.nfl_id=player_weekly_points.player_nfl_id 
+                                    WHERE player.eligible_positions = ? 
+                                    AND player_weekly_points.season = ?
+                                    ''',
+                                 (position, season))
+    df = pd.DataFrame(player_points)
+    df['points'] = df['points'].astype(float)
+    # de minimis threshold
+    df = df[df['points'] >= 5]
+    df = df.groupby(['nfl_id', 'yahoo_id', 'yahoo_name'])['points'].agg([np.sum, np.var])
+    df = df.reset_index()
+    fig = px.scatter(df, x='sum', y='var', text='yahoo_name')
+    fig.update_traces(textposition='top center')
+    fig.show()
+
+
 def scrape_player(p_name):
     """
     If searching for a player in the Yahoo API fails, try to scrape their details from the website.
@@ -474,5 +501,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    minmax('QB')
-
+    risk_reward('QB', 2019)
