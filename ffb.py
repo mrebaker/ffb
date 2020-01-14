@@ -501,4 +501,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    print(api.free_agents('QB'))
+    api.twitter_api()

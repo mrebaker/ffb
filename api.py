@@ -11,6 +11,7 @@ import requests
 
 # Third-party imports
 import pandas as pd
+import tweepy
 import yaml
 import yahoo_fantasy_api as yapi
 from yahoo_oauth import OAuth2
@@ -173,3 +174,11 @@ def scrape_player(p_name):
         return {}
 
     return filtered_hits[0]['data']
+
+
+def twitter_api():
+    credentials = CONFIG['twitter-api']
+    auth = tweepy.OAuthHandler(credentials['consumer_key'], credentials['consumer_secret'])
+    auth.set_access_token(credentials['access_key'], credentials['access_secret'])
+
+    return tweepy.API(auth)
