@@ -10,6 +10,7 @@ from pathlib import Path
 import requests
 
 # Third-party imports
+import pandas as pd
 import yaml
 import yahoo_fantasy_api as yapi
 from yahoo_oauth import OAuth2
@@ -36,6 +37,22 @@ def authenticate():
     if not auth.token_is_valid():
         auth.refresh_access_token()
     return auth
+
+
+def free_agents(position=None):
+    """
+    Gets free agents at a given position, or for all positions if none specified.
+    :param position: Optional string representing a position group e.g. QB
+    :return: pandas data frame
+    """
+    lg = league()
+    if position:
+        df = pd.DataFrame(lg.free_agents(position))
+    else:
+        dfs = [pd.DataFrame(lg.free_agents(pos)) for pos in lg.positions()]
+        df = pd.concat(dfs)
+
+    return df
 
 
 def player(p_name=None, p_id=None):

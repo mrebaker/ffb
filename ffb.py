@@ -501,4 +501,4 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    risk_reward('QB', 2019)
+    print(api.free_agents('QB'))
