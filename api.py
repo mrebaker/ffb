@@ -176,6 +176,13 @@ def scrape_player(p_name):
     return filtered_hits[0]['data']
 
 
+def tweets(search_text):
+    api = twitter_api()
+    results = api.search(q=search_text)
+    for result in results:
+        print(result)
+
+
 def twitter_api():
     credentials = CONFIG['twitter-api']
     auth = tweepy.OAuthHandler(credentials['consumer_key'], credentials['consumer_secret'])
