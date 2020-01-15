@@ -127,19 +127,25 @@ def consistency_chart(frequency):
     fig.show()
 
 
-def correlate_years():
+def correlate_years(position):
+    """
+    Charts players total points across two years.
+    :param position: string representing position e.g. WR
+    :return: Nothing
+    """
     _, curs = db.connect()
     result = curs.execute('''SELECT player.nfl_name as player_name, season, sum(points)
                              FROM player_weekly_points 
                              LEFT JOIN player on player_weekly_points.player_nfl_id = player.nfl_id
-                             WHERE player.eligible_positions = 'WR'
-                             GROUP BY player.nfl_name, season''').fetchall()
+                             WHERE player.eligible_positions = ?
+                             GROUP BY player.nfl_name, season''', (position, )).fetchall()
 
     df = pd.DataFrame(result)
-    df = df.pivot(index='player_name', columns='season', values='sum(points)')
-    df = df.reset_index()
+    df = df.pivot(index='player_name', columns='season', values='sum(points)').reset_index()
+    df = df.fillna(0)
 
     fig = px.scatter(df, x=2018, y=2019, text='player_name')
+    fig.update_traces(textposition='top center')
     fig.show()
 
 
@@ -501,5 +507,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    print(api.search_tweets('Julian Edelman'))
+    correlate_years('QB')
 
