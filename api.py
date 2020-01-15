@@ -179,8 +179,7 @@ def scrape_player(p_name):
 def tweets(search_text):
     api = twitter_api()
     results = api.search(q=search_text)
-    for result in results:
-        print(result)
+    return [tweet for tweet in results if not hasattr(tweet, 'retweeted_status')]
 
 
 def twitter_api():
