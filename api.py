@@ -176,10 +176,20 @@ def scrape_player(p_name):
     return filtered_hits[0]['data']
 
 
-def tweets(search_text):
+def search_tweets(search_text):
+    """
+    Searches twitter for statuses with the given search text.
+    :param search_text: string to search for
+    :return: list of dicts representing basic tweet info
+    """
     api = twitter_api()
     results = api.search(q=search_text)
-    return [tweet for tweet in results if not hasattr(tweet, 'retweeted_status')]
+
+    return [{'text': tweet.text,
+             'author': tweet.author.screen_name,
+             'retweet_count': tweet.retweet_count,
+             'created_at': tweet.created_at}
+            for tweet in results if not hasattr(tweet, 'retweeted_status')]
 
 
 def twitter_api():

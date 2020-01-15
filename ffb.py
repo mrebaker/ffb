@@ -501,5 +501,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    api.tweets('Julian Edelman')
+    print(api.search_tweets('Julian Edelman'))
 
