@@ -415,6 +415,18 @@ def risk_reward(position, season):
     fig.show()
 
 
+def scoring_breakdown():
+    """
+    Charts each player within a position group according to total points scored, broken down by the scoring category.
+    :return: Nothing
+    """
+    _, curs = db.connect()
+    curs.execute("""SELECT player.nfl_name, weekstat.season, statline.nfl_name, sum(weekstat.stat_vol * statline.points) as points
+                    FROM (player LEFT JOIN weekstat ON player.nfl_id = weekstat.player_nfl_id)
+                    LEFT JOIN statline on weekstat.stat_nfl_id = weekstat.stat_nfl_id
+                    GROUP BY player.nfl_name, weekstat.season, statline.nfl_name """)
+
+
 def scrape_player(p_name):
     """
     If searching for a player in the Yahoo API fails, try to scrape their details from the website.
