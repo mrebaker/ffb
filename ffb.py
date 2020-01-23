@@ -415,16 +415,23 @@ def risk_reward(position, season):
     fig.show()
 
 
-def scoring_breakdown():
+def scoring_breakdown(position, season):
     """
     Charts each player within a position group according to total points scored, broken down by the scoring category.
     :return: Nothing
     """
     _, curs = db.connect()
-    curs.execute("""SELECT player.nfl_name, weekstat.season, statline.nfl_name, sum(weekstat.stat_vol * statline.points) as points
-                    FROM (player LEFT JOIN weekstat ON player.nfl_id = weekstat.player_nfl_id)
-                    LEFT JOIN statline on weekstat.stat_nfl_id = weekstat.stat_nfl_id
-                    GROUP BY player.nfl_name, weekstat.season, statline.nfl_name """)
+    rows = curs.execute("""SELECT player.nfl_name as player, weekstat.season, statline.nfl_name as category, 
+                           sum(weekstat.stat_vol * statline.points) as points
+                           FROM (player INNER JOIN weekstat ON player.nfl_id = weekstat.player_nfl_id)
+                           INNER JOIN statline on weekstat.stat_nfl_id = statline.nfl_id
+                           WHERE player.eligible_positions = ? and weekstat.season = ?
+                           GROUP BY player.nfl_name, weekstat.season, statline.nfl_name""",
+                        (position, season)).fetchall()
+
+    df = pd.DataFrame(rows)
+    fig = px.bar(df, x='player', y='points', color='category')
+    fig.show()
 
 
 def scrape_player(p_name):
@@ -519,5 +526,5 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    correlate_years('QB')
+    scoring_breakdown('QB', 2019)
 
