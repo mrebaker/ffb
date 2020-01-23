@@ -430,6 +430,8 @@ def scoring_breakdown(position, season):
                         (position, season)).fetchall()
 
     df = pd.DataFrame(rows)
+    df['total_points'] = df.groupby('player').transform(sum)['points']
+    df = df.sort_values('total_points', ascending=False)
     fig = px.bar(df, x='player', y='points', color='category')
     fig.show()
 
