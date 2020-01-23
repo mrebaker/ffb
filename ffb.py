@@ -431,7 +431,8 @@ def scoring_breakdown(position, season):
 
     df = pd.DataFrame(rows)
     df['total_points'] = df.groupby('player').transform(sum)['points']
-    df = df.sort_values('total_points', ascending=False)
+    df = df[df['points'] != 0].dropna()
+    df = df.sort_values(['total_points', 'player', 'points'], ascending=False)
     fig = px.bar(df, x='player', y='points', color='category')
     fig.show()
 
@@ -528,5 +529,6 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
+    db.calc_player_weekly_points()
     scoring_breakdown('QB', 2019)
 
