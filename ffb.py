@@ -529,6 +529,6 @@ def team_weekly_score(team, week, league):
 
 
 if __name__ == '__main__':
-    db.calc_player_weekly_points()
-    scoring_breakdown('QB', 2019)
+    # db.calc_player_weekly_points()
+    db.load_nfl_game_data()
 

@@ -87,23 +87,19 @@ def load_nfl_game_data():
                     stat_vol REAL)''')
     conn.commit()
 
-    folder = 'data_in'
-    files = []
-    for (_, _, file_names) in os.walk(folder):
-        files.extend(file_names)
-        break
-    stat_files = fnmatch.filter(files, '*weekstats*.json')
+    folder = Path('data_in')
+    stat_files = folder.glob('*weekstats*.json')
 
     for stat_file in tqdm(stat_files):
-        season = re.split('[-.]', stat_file)[2]
-        week = re.split('[-.]', stat_file)[3]
+        season = re.split('[-.]', stat_file.stem)[2]
+        week = re.split('[-.]', stat_file.stem)[3]
         row = curs.execute('''SELECT * FROM weekstat
                               WHERE season = ? and week = ?
                               LIMIT 1''', (season, week)).fetchone()
         if row:
             continue
 
-        with open(os.path.join(folder, stat_file), 'r') as f:
+        with open(stat_file, 'r') as f:
             stats = json.loads(f.read())
             players = stats['games']['102019']['players']
             for player_id, player_stats in tqdm(players.items()):
