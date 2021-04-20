@@ -15,7 +15,7 @@ mccabe==0.6.1
 numpy==1.17.4
 objectpath==0.6.1
 pandas==0.25.3
-py==1.8.0
+py==1.10.0
 pyaml==19.4.1
 pylint==2.4.4
 pyparsing==2.4.5
