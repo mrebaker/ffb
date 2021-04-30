@@ -27,7 +27,7 @@ requests==2.22.0
 six==1.13.0
 tqdm==4.40.2
 typed-ast==1.4.0
-urllib3==1.25.7
+urllib3==1.25.8
 wrapt==1.11.2
 yahoo-fantasy-api==1.5.0
 yahoo-oauth==0.1.9
